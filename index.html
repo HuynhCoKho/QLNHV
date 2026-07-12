@@ -19,10 +19,14 @@
     </section>
 
     <section id="app" hidden>
-      <nav><button data-view="dashboard" class="active">Tổng quan</button><button data-view="records">Hồ sơ</button><button data-view="backup">Sao lưu</button></nav>
+      <nav><button data-view="dashboard" class="active">Tổng quan</button><button data-view="modules">Nghiệp vụ</button><button data-view="records">Hồ sơ một cửa</button><button data-view="reports">Báo cáo</button><button data-view="backup">Sao lưu</button></nav>
       <div id="dashboard" class="view">
         <div class="stats"><article><strong id="recordCount">0</strong><span>Hồ sơ</span></article><article><strong id="companyCount">0</strong><span>Doanh nghiệp</span></article><article><strong id="updatedAt">—</strong><span>Cập nhật gần nhất</span></article></div>
         <div class="card"><h2>An toàn dữ liệu</h2><p>Dữ liệu chỉ nằm trên thiết bị này. Hãy xuất bản sao lưu mã hóa lên Google Drive sau mỗi buổi làm việc.</p></div>
+      </div>
+      <div id="modules" class="view" hidden>
+        <div class="page-heading"><div><h2>Danh mục nghiệp vụ</h2><p>Được phục dựng từ các biểu mẫu và luồng xử lý của chương trình Access.</p></div><input id="moduleSearch" type="search" placeholder="Tìm nghiệp vụ…"></div>
+        <div id="moduleGrid" class="module-grid"></div>
       </div>
       <div id="records" class="view" hidden>
         <div class="toolbar"><input id="search" type="search" placeholder="Tìm mã hồ sơ, MST, tên doanh nghiệp…"><button id="newRecord">Thêm hồ sơ</button></div>
@@ -31,10 +35,15 @@
       <div id="backup" class="view" hidden>
         <div class="grid"><article class="card"><h2>Xuất sao lưu</h2><p>Tạo một file đã mã hóa để tải lên Google Drive.</p><button id="exportBtn">Tạo file sao lưu</button></article><article class="card"><h2>Khôi phục</h2><p>Chọn file <code>.qlnhv</code>. Dữ liệu hiện tại sẽ được thay thế sau khi xác nhận.</p><input id="importFile" type="file" accept=".qlnhv,application/json"><button id="importBtn">Khôi phục từ file</button></article></div>
       </div>
+      <div id="reports" class="view" hidden>
+        <div class="page-heading"><div><h2>Danh mục báo cáo và in ấn</h2><p>96 mẫu báo cáo đang được phân loại và chuyển đổi từ Access.</p></div><input id="reportSearch" type="search" placeholder="Tìm báo cáo…"></div>
+        <div id="reportList" class="card catalog"></div>
+      </div>
     </section>
   </main>
 
   <dialog id="recordDialog"><form id="recordForm" method="dialog"><h2>Thông tin hồ sơ</h2><input id="recordId" type="hidden"><div class="form-grid"><label>Mã hồ sơ<input id="mshs" required maxlength="100"></label><label>Ngày nhận<input id="ngayNhan" type="date"></label><label>Mã số thuế<input id="mst" maxlength="50"></label><label>Tên doanh nghiệp<input id="company" maxlength="255"></label><label class="wide">Thủ tục<input id="procedure" maxlength="255"></label><label class="wide">Ghi chú<textarea id="note" rows="3"></textarea></label></div><div class="actions"><button value="cancel" class="ghost">Hủy</button><button id="saveRecord" value="default">Lưu</button></div></form></dialog>
+  <dialog id="moduleDialog"><form method="dialog"><div class="dialog-head"><div><span id="moduleStatus" class="status"></span><h2 id="moduleTitle"></h2></div><button value="cancel" class="close" aria-label="Đóng">×</button></div><p id="moduleDescription"></p><h3>Chức năng gốc đã nhận diện</h3><ul id="moduleFeatures" class="feature-list"></ul><p class="migration-note">Các mục chưa kích hoạt đang được chuyển nguyên tắc xử lý, truy vấn và biểu mẫu từ Access; không bị loại bỏ.</p></form></dialog>
   <div id="toast" role="status" aria-live="polite"></div>
   <script src="app.js" defer></script>
 </body>
