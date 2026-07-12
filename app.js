@@ -520,7 +520,7 @@ function renderTTHC() {
 }
 function tthcStatusBadge(t) {
   if (sameText(t, 'Đang hiệu lực')) return `<span class="badge badge-sage">Đang hiệu lực</span>`;
-  if (sameText(t, 'Hủy')) return `<span class="badge badge-seal">Hủy</span>`;
+  if (sameText(t, 'Hủy')) return `<span class="badge badge-danger">Hủy</span>`;
   if (sameText(t, 'Chưa hiệu lực')) return `<span class="badge badge-amber">Chưa hiệu lực</span>`;
   return `<span class="badge badge-neutral">${esc(t || '—')}</span>`;
 }
