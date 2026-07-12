@@ -112,6 +112,31 @@ async function loadAll() {
     apiGet('list', { sheet: 'HoSo' })
   ]);
   DB.KhachHang = kh; DB.ChuyenVien = cv; DB.TTHC = tthc; DB.TyGia = tygia; DB.HoSo = hoso;
+  normalizeIds();
+}
+
+// Google Sheets co the tra ve ma so (MaKH, MaTTHC...) o dang kieu SO thay vi CHU
+// (vi du "1.000555" bi hieu la so thap phan). Ep tat ca ve String() de tranh loi
+// so sanh "===" giua so va chu khi tim kiem / sua / xoa ban ghi.
+function normalizeIds() {
+  DB.KhachHang.forEach(r => { r.MaKH = String(r.MaKH); });
+  DB.ChuyenVien.forEach(r => { r.MaCV = String(r.MaCV); });
+  DB.TTHC.forEach(r => { r.MaTTHC = String(r.MaTTHC); });
+  DB.TyGia.forEach(r => { r.MaNgoaiTe = String(r.MaNgoaiTe); });
+  DB.HoSo.forEach(r => {
+    r.MaHoSo = String(r.MaHoSo);
+    r.MaKH = String(r.MaKH);
+    r.MaTTHC = String(r.MaTTHC);
+    r.MaCV = String(r.MaCV);
+    if (r.NguyenTeVay) r.NguyenTeVay = String(r.NguyenTeVay);
+    if (r.NguyenTeDauTu) r.NguyenTeDauTu = String(r.NguyenTeDauTu);
+  });
+}
+
+async function reloadSheet(sheet) {
+  DB[sheet] = await apiGet('list', { sheet });
+  normalizeIds();
+  return DB[sheet];
 }
 
 // ---------------- Router ----------------
@@ -342,7 +367,7 @@ function openHoSoForm(rec) {
         else await apiPost('create', 'HoSo', data);
         toast('Đã lưu hồ sơ ' + data.MaHoSo);
         closeModal();
-        DB.HoSo = await apiGet('list', { sheet: 'HoSo' });
+        await reloadSheet('HoSo');
         renderHoSo();
       } catch (err) { toast(err.message, true); }
     };
@@ -441,7 +466,7 @@ function openKHForm(rec) {
         else await apiPost('create', 'KhachHang', data);
         toast('Đã lưu khách hàng ' + data.MaKH);
         closeModal();
-        DB.KhachHang = await apiGet('list', { sheet: 'KhachHang' });
+        await reloadSheet('KhachHang');
         renderKhachHang();
       } catch (err) { toast(err.message, true); }
     };
@@ -516,7 +541,7 @@ function openTTHCForm(rec) {
         else await apiPost('create', 'TTHC', data);
         toast('Đã lưu thủ tục ' + data.MaTTHC);
         closeModal();
-        DB.TTHC = await apiGet('list', { sheet: 'TTHC' });
+        await reloadSheet('TTHC');
         renderTTHC();
       } catch (err) { toast(err.message, true); }
     };
@@ -576,7 +601,7 @@ function openCVForm(rec) {
         else await apiPost('create', 'ChuyenVien', data);
         toast('Đã lưu chuyên viên ' + data.MaCV);
         closeModal();
-        DB.ChuyenVien = await apiGet('list', { sheet: 'ChuyenVien' });
+        await reloadSheet('ChuyenVien');
         renderChuyenVien();
       } catch (err) { toast(err.message, true); }
     };
@@ -593,7 +618,7 @@ function renderTyGia() {
     btn.disabled = true; btn.textContent = 'Đang cập nhật…';
     try {
       await apiGet('refreshRates');
-      DB.TyGia = await apiGet('list', { sheet: 'TyGia' });
+      await reloadSheet('TyGia');
       toast('Đã cập nhật tỷ giá live');
       renderTyGia();
     } catch (err) { toast(err.message, true); }
@@ -615,7 +640,7 @@ async function deleteRecord(sheet, id, idField, rerender) {
   try {
     await apiPost('delete', sheet, {}, id);
     toast('Đã xóa ' + id);
-    DB[sheet] = await apiGet('list', { sheet });
+    await reloadSheet(sheet);
     rerender();
   } catch (err) { toast(err.message, true); }
 }
