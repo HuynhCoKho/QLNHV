@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>QLNHV — Quản lý hồ sơ thủ tục hành chính</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark">QL</span>
+      <div class="brand-text">
+        <div class="brand-title">QLNHV</div>
+        <div class="brand-sub">Quản lý hồ sơ TTHC</div>
+      </div>
+    </div>
+
+    <nav class="nav" id="nav">
+      <a href="#hoso" data-route="hoso" class="nav-item">
+        <span class="nav-idx">01</span>Hồ sơ TTHC
+      </a>
+      <a href="#khachhang" data-route="khachhang" class="nav-item">
+        <span class="nav-idx">02</span>Khách hàng
+      </a>
+      <a href="#tthc" data-route="tthc" class="nav-item">
+        <span class="nav-idx">03</span>Danh mục TTHC
+      </a>
+      <a href="#chuyenvien" data-route="chuyenvien" class="nav-item">
+        <span class="nav-idx">04</span>Chuyên viên
+      </a>
+      <a href="#tygia" data-route="tygia" class="nav-item">
+        <span class="nav-idx">05</span>Tỷ giá
+      </a>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div id="connStatus" class="conn-status conn-pending">● đang kết nối…</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <h1 id="pageTitle">Hồ sơ TTHC</h1>
+      <div class="topbar-actions" id="topbarActions"></div>
+    </header>
+
+    <div id="view" class="view"></div>
+  </main>
+</div>
+
+<div id="modalRoot"></div>
+<div id="toastRoot" class="toast-root"></div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
