@@ -3,13 +3,15 @@
 // SPA don gian (khong dung framework) — goi thang API Apps Script
 // ============================================================
 
-const DB = { KhachHang: [], ChuyenVien: [], TTHC: [], TyGia: [], HoSo: [] };
+const DB = { KhachHang: [], ChuyenVien: [], TTHC: [], TyGia: [], HoSo: [], NhomNghiepVu: [] };
 
 const TRANGTHAI_HOSO = ['Chưa tiếp nhận', 'Đã tiếp nhận', 'Bổ sung hồ sơ', 'Đang xử lý', 'Đã xử lý'];
-const NHOM_NGHIEPVU = [
+const LOAI_TTHC_OPTIONS = ['Trực tuyến toàn trình', 'Thường'];
+const TRANGTHAI_TTHC_OPTIONS = ['Đang hiệu lực', 'Hủy', 'Chưa hiệu lực'];
+const LOAI_DAC_BIET_OPTIONS = [
+  { value: '', label: 'Không (nghiệp vụ thường)' },
   { value: 'VayTraNoNuocNgoai', label: 'Vay, trả nợ nước ngoài' },
-  { value: 'DauTuRaNuocNgoai', label: 'Đầu tư ra nước ngoài' },
-  { value: 'Khac', label: 'Khác' }
+  { value: 'DauTuRaNuocNgoai', label: 'Đầu tư ra nước ngoài' }
 ];
 
 // ---------------- API helpers ----------------
@@ -63,6 +65,7 @@ function toVNDate(iso) {
   return d + '/' + m + '/' + y;
 }
 function esc(s) { return (s === undefined || s === null) ? '' : String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function sameText(a, b) { return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase(); }
 function toast(msg, isError) {
   const root = document.getElementById('toastRoot');
   const el = document.createElement('div');
@@ -78,6 +81,8 @@ function cvName(ma) { const r = DB.ChuyenVien.find(x => x.MaCV === ma); return r
 function tthcRow(ma) { return DB.TTHC.find(x => x.MaTTHC === ma); }
 function tthcName(ma) { const r = tthcRow(ma); return r ? r.TenTTHC : ''; }
 function rateRow(code) { return DB.TyGia.find(x => x.MaNgoaiTe === code); }
+function nhomNghiepVuRow(ten) { return DB.NhomNghiepVu.find(x => sameText(x.TenNhom, ten)); }
+function loaiDacBietOf(tenNhom) { const r = nhomNghiepVuRow(tenNhom); return r ? r.LoaiDacBiet : ''; }
 function toUSD(amount, code) {
   if (amount === '' || amount === null || amount === undefined || !code) return null;
   const r = rateRow(code);
@@ -104,14 +109,15 @@ async function boot() {
 }
 
 async function loadAll() {
-  const [kh, cv, tthc, tygia, hoso] = await Promise.all([
+  const [kh, cv, tthc, tygia, hoso, nnv] = await Promise.all([
     apiGet('list', { sheet: 'KhachHang' }),
     apiGet('list', { sheet: 'ChuyenVien' }),
     apiGet('list', { sheet: 'TTHC' }),
     apiGet('list', { sheet: 'TyGia' }),
-    apiGet('list', { sheet: 'HoSo' })
+    apiGet('list', { sheet: 'HoSo' }),
+    apiGet('list', { sheet: 'NhomNghiepVu' })
   ]);
-  DB.KhachHang = kh; DB.ChuyenVien = cv; DB.TTHC = tthc; DB.TyGia = tygia; DB.HoSo = hoso;
+  DB.KhachHang = kh; DB.ChuyenVien = cv; DB.TTHC = tthc; DB.TyGia = tygia; DB.HoSo = hoso; DB.NhomNghiepVu = nnv;
   normalizeIds();
 }
 
@@ -123,6 +129,7 @@ function normalizeIds() {
   DB.ChuyenVien.forEach(r => { r.MaCV = String(r.MaCV); });
   DB.TTHC.forEach(r => { r.MaTTHC = String(r.MaTTHC); });
   DB.TyGia.forEach(r => { r.MaNgoaiTe = String(r.MaNgoaiTe); });
+  DB.NhomNghiepVu.forEach(r => { r.TenNhom = String(r.TenNhom); });
   DB.HoSo.forEach(r => {
     r.MaHoSo = String(r.MaHoSo);
     r.MaKH = String(r.MaKH);
@@ -145,7 +152,8 @@ const ROUTES = {
   khachhang: { title: 'Khách hàng', render: renderKhachHang },
   tthc: { title: 'Danh mục thủ tục hành chính', render: renderTTHC },
   chuyenvien: { title: 'Chuyên viên', render: renderChuyenVien },
-  tygia: { title: 'Tỷ giá', render: renderTyGia }
+  tygia: { title: 'Tỷ giá', render: renderTyGia },
+  nhomnghiepvu: { title: 'Nhóm nghiệp vụ', render: renderNhomNghiepVu }
 };
 
 function route() {
@@ -315,9 +323,10 @@ function openHoSoForm(rec) {
       const trangThai = el.querySelector('#fTrangThai').value;
       const tthc = tthcRow(el.querySelector('#fMaTTHC').value);
       const isDone = trangThai === 'Đã xử lý';
+      const dacBiet = tthc ? loaiDacBietOf(tthc.NhomNghiepVu) : '';
       el.querySelector('#fsKetQua').style.display = isDone ? '' : 'none';
-      el.querySelector('#fsVay').style.display = (isDone && tthc && tthc.NhomNghiepVu === 'VayTraNoNuocNgoai') ? '' : 'none';
-      el.querySelector('#fsDauTu').style.display = (isDone && tthc && tthc.NhomNghiepVu === 'DauTuRaNuocNgoai') ? '' : 'none';
+      el.querySelector('#fsVay').style.display = (isDone && dacBiet === 'VayTraNoNuocNgoai') ? '' : 'none';
+      el.querySelector('#fsDauTu').style.display = (isDone && dacBiet === 'DauTuRaNuocNgoai') ? '' : 'none';
     };
     const updateUSD = () => {
       const amt = parseNum(el.querySelector('#fSoTienVay').value);
@@ -490,8 +499,8 @@ function renderTTHC() {
       <tr>
         <td class="mono">${esc(r.MaTTHC)}</td>
         <td>${esc(r.TenTTHC)}</td>
-        <td class="muted">${r.LoaiTTHC === 'TrucTuyenToanTrinh' ? 'Trực tuyến toàn trình' : 'Thường'}</td>
-        <td class="muted">${(NHOM_NGHIEPVU.find(n => n.value === r.NhomNghiepVu) || {}).label || 'Khác'}</td>
+        <td class="muted">${esc(r.LoaiTTHC)}</td>
+        <td class="muted">${esc(r.NhomNghiepVu)}</td>
         <td>${tthcStatusBadge(r.TrangThai)}</td>
         <td class="cell-actions">
           <button class="btn btn-outline btn-sm" data-edit="${esc(r.MaTTHC)}">Sửa</button>
@@ -504,28 +513,28 @@ function renderTTHC() {
   draw();
 }
 function tthcStatusBadge(t) {
-  const map = { 'DangHieuLuc': ['badge-sage', 'Đang hiệu lực'], 'Huy': ['badge-seal', 'Hủy'], 'ChuaHieuLuc': ['badge-amber', 'Chưa hiệu lực'] };
-  const pair = map[t] || ['badge-neutral', t || '—'];
-  return `<span class="badge ${pair[0]}">${esc(pair[1])}</span>`;
+  if (sameText(t, 'Đang hiệu lực')) return `<span class="badge badge-sage">Đang hiệu lực</span>`;
+  if (sameText(t, 'Hủy')) return `<span class="badge badge-seal">Hủy</span>`;
+  if (sameText(t, 'Chưa hiệu lực')) return `<span class="badge badge-amber">Chưa hiệu lực</span>`;
+  return `<span class="badge badge-neutral">${esc(t || '—')}</span>`;
 }
 function openTTHCForm(rec) {
   const isEdit = !!rec;
-  rec = rec || { LoaiTTHC: 'Thuong', NhomNghiepVu: 'Khac', TrangThai: 'DangHieuLuc' };
+  rec = rec || { LoaiTTHC: 'Thường', NhomNghiepVu: 'Khác', TrangThai: 'Đang hiệu lực' };
+  const nnvOptions = DB.NhomNghiepVu.map(n => `<option value="${esc(n.TenNhom)}" ${sameText(rec.NhomNghiepVu, n.TenNhom) ? 'selected' : ''}>${esc(n.TenNhom)}</option>`).join('');
   const bodyHtml = `
     <form id="tthcForm">
       <div class="form-grid">
         <div class="field mono"><label>Mã TTHC</label><input type="text" name="MaTTHC" value="${esc(rec.MaTTHC || '')}" ${isEdit ? 'readonly' : ''} required /></div>
         <div class="field span-2"><label>Tên thủ tục hành chính</label><input type="text" name="TenTTHC" value="${esc(rec.TenTTHC || '')}" required /></div>
         <div class="field"><label>Loại TTHC</label><select name="LoaiTTHC">
-          <option value="TrucTuyenToanTrinh" ${rec.LoaiTTHC === 'TrucTuyenToanTrinh' ? 'selected' : ''}>Trực tuyến toàn trình</option>
-          <option value="Thuong" ${rec.LoaiTTHC === 'Thuong' ? 'selected' : ''}>Thường (không nộp trực tuyến)</option></select></div>
-        <div class="field"><label>Nhóm nghiệp vụ</label><select name="NhomNghiepVu">
-          ${NHOM_NGHIEPVU.map(n => `<option value="${n.value}" ${rec.NhomNghiepVu === n.value ? 'selected' : ''}>${n.label}</option>`).join('')}
-        </select><span class="hint">Quyết định các trường nhập thêm khi xử lý hồ sơ</span></div>
+          ${LOAI_TTHC_OPTIONS.map(o => `<option value="${o}" ${sameText(rec.LoaiTTHC, o) ? 'selected' : ''}>${o}</option>`).join('')}
+        </select></div>
+        <div class="field"><label>Nhóm nghiệp vụ</label><select name="NhomNghiepVu">${nnvOptions}</select>
+          <span class="hint">Quản lý danh mục ở tab "Nhóm nghiệp vụ"</span></div>
         <div class="field span-2"><label>Trạng thái</label><select name="TrangThai">
-          <option value="DangHieuLuc" ${rec.TrangThai === 'DangHieuLuc' ? 'selected' : ''}>Đang hiệu lực</option>
-          <option value="Huy" ${rec.TrangThai === 'Huy' ? 'selected' : ''}>Hủy</option>
-          <option value="ChuaHieuLuc" ${rec.TrangThai === 'ChuaHieuLuc' ? 'selected' : ''}>Chưa hiệu lực</option></select></div>
+          ${TRANGTHAI_TTHC_OPTIONS.map(o => `<option value="${o}" ${sameText(rec.TrangThai, o) ? 'selected' : ''}>${o}</option>`).join('')}
+        </select></div>
         <div class="field span-2"><label>Ghi chú</label><textarea name="GhiChu">${esc(rec.GhiChu || '')}</textarea></div>
       </div>
       <div class="modal-foot"><button type="button" class="btn btn-outline" id="tthcCancel">Hủy</button><button type="submit" class="btn btn-primary">Lưu</button></div>
@@ -632,6 +641,72 @@ function renderTyGia() {
       <tr><td class="mono">${esc(r.MaNgoaiTe)}</td><td class="mono">${fmtRate(r.TyGiaSoUSD)}</td><td class="mono">${fmtNum(r.TyGiaSoVND)}</td><td class="muted mono">${esc(r.NgayCapNhat)}</td></tr>
     `).join('') : `<tr><td colspan="4"><div class="empty-state"><h3>Chưa có dữ liệu tỷ giá</h3><p>Bấm "Cập nhật tỷ giá live" để lấy tỷ giá mới nhất.</p></div></td></tr>`}
     </tbody></table></div></div>`;
+}
+
+// ============================================================
+// MODULE: NHOM NGHIEP VU (danh muc quan ly nhom nghiep vu TTHC)
+// ============================================================
+function renderNhomNghiepVu() {
+  document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" id="btnNewNNV">+ Nhóm mới</button>`;
+  document.getElementById('btnNewNNV').onclick = () => openNNVForm();
+  const view = document.getElementById('view');
+  view.innerHTML = `
+    <div class="card" style="margin-bottom:16px"><div style="padding:14px 18px" class="muted">
+      Danh mục này quyết định các trường nhập thêm khi xử lý <b>Hồ sơ</b> (ví dụ: khoản vay, dự án đầu tư).
+      Chọn "Loại đặc biệt" đúng ý nghĩa nghiệp vụ, còn <b>Tên nhóm</b> bạn có thể đặt tên tự do theo ý muốn.
+    </div></div>
+    <div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>Tên nhóm</th><th>Loại đặc biệt</th><th>Mô tả</th><th></th></tr></thead>
+    <tbody id="nnvBody"></tbody></table></div></div>`;
+  const draw = () => {
+    const body = document.getElementById('nnvBody');
+    if (!DB.NhomNghiepVu.length) { body.innerHTML = `<tr><td colspan="4"><div class="empty-state"><h3>Chưa có nhóm nghiệp vụ nào</h3></div></td></tr>`; return; }
+    body.innerHTML = DB.NhomNghiepVu.map(r => `
+      <tr>
+        <td>${esc(r.TenNhom)}</td>
+        <td class="muted">${esc((LOAI_DAC_BIET_OPTIONS.find(o => o.value === r.LoaiDacBiet) || {}).label || 'Không')}</td>
+        <td class="muted">${esc(r.MoTa || '')}</td>
+        <td class="cell-actions">
+          <button class="btn btn-outline btn-sm" data-edit="${esc(r.TenNhom)}">Sửa</button>
+          <button class="btn btn-danger btn-sm" data-del="${esc(r.TenNhom)}">Xóa</button>
+        </td>
+      </tr>`).join('');
+    body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openNNVForm(DB.NhomNghiepVu.find(x => x.TenNhom === b.dataset.edit)));
+    body.querySelectorAll('[data-del]').forEach(b => b.onclick = () => deleteRecord('NhomNghiepVu', b.dataset.del, 'TenNhom', renderNhomNghiepVu));
+  };
+  draw();
+}
+function openNNVForm(rec) {
+  const isEdit = !!rec;
+  rec = rec || { LoaiDacBiet: '' };
+  const bodyHtml = `
+    <form id="nnvForm">
+      <div class="form-grid cols-1">
+        <div class="field"><label>Tên nhóm nghiệp vụ</label><input type="text" name="TenNhom" value="${esc(rec.TenNhom || '')}" ${isEdit ? 'readonly' : ''} required /></div>
+        <div class="field"><label>Loại đặc biệt</label><select name="LoaiDacBiet">
+          ${LOAI_DAC_BIET_OPTIONS.map(o => `<option value="${o.value}" ${rec.LoaiDacBiet === o.value ? 'selected' : ''}>${o.label}</option>`).join('')}
+        </select><span class="hint">Quyết định các trường nhập thêm khi xử lý hồ sơ (Khoản vay / Dự án đầu tư)</span></div>
+        <div class="field"><label>Mô tả</label><input type="text" name="MoTa" value="${esc(rec.MoTa || '')}" /></div>
+        <div class="field"><label>Ghi chú</label><textarea name="GhiChu">${esc(rec.GhiChu || '')}</textarea></div>
+      </div>
+      <div class="modal-foot"><button type="button" class="btn btn-outline" id="nnvCancel">Hủy</button><button type="submit" class="btn btn-primary">Lưu</button></div>
+    </form>`;
+  openModal(isEdit ? 'Sửa nhóm nghiệp vụ' : 'Nhóm nghiệp vụ mới', bodyHtml, (el) => {
+    el.querySelector('#nnvCancel').onclick = closeModal;
+    el.querySelector('#nnvForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(e.target).entries());
+      data.TenNhom = data.TenNhom.trim();
+      try {
+        if (isEdit) await apiPost('update', 'NhomNghiepVu', data, data.TenNhom);
+        else await apiPost('create', 'NhomNghiepVu', data);
+        toast('Đã lưu nhóm nghiệp vụ ' + data.TenNhom);
+        closeModal();
+        await reloadSheet('NhomNghiepVu');
+        renderNhomNghiepVu();
+      } catch (err) { toast(err.message, true); }
+    };
+  });
 }
 
 // ---------------- Shared delete ----------------
