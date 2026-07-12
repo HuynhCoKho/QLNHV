@@ -19,10 +19,17 @@ async function apiGet(action, params = {}) {
   const url = new URL(API_URL);
   url.searchParams.set('action', action);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  const res = await fetch(url);
-  const json = await res.json();
-  if (json.error) throw new Error(json.error);
-  return json;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const res = await fetch(url);
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      return json;
+    } catch (err) {
+      if (attempt === 2) throw err;
+      await new Promise(r => setTimeout(r, 700)); // cho 1 chut roi thu lai (Apps Script doi khi loi tam thoi)
+    }
+  }
 }
 
 async function apiPost(action, sheet, data, id) {
@@ -109,15 +116,14 @@ async function boot() {
 }
 
 async function loadAll() {
-  const [kh, cv, tthc, tygia, hoso, nnv] = await Promise.all([
-    apiGet('list', { sheet: 'KhachHang' }),
-    apiGet('list', { sheet: 'ChuyenVien' }),
-    apiGet('list', { sheet: 'TTHC' }),
-    apiGet('list', { sheet: 'TyGia' }),
-    apiGet('list', { sheet: 'HoSo' }),
-    apiGet('list', { sheet: 'NhomNghiepVu' })
-  ]);
-  DB.KhachHang = kh; DB.ChuyenVien = cv; DB.TTHC = tthc; DB.TyGia = tygia; DB.HoSo = hoso; DB.NhomNghiepVu = nnv;
+  // Goi lan luot tung sheet (khong dung Promise.all) vi Apps Script Web App
+  // xu ly nhieu request dong thoi khong on dinh, de gay loi ngau nhien.
+  DB.KhachHang = await apiGet('list', { sheet: 'KhachHang' });
+  DB.ChuyenVien = await apiGet('list', { sheet: 'ChuyenVien' });
+  DB.TTHC = await apiGet('list', { sheet: 'TTHC' });
+  DB.TyGia = await apiGet('list', { sheet: 'TyGia' });
+  DB.HoSo = await apiGet('list', { sheet: 'HoSo' });
+  DB.NhomNghiepVu = await apiGet('list', { sheet: 'NhomNghiepVu' });
   normalizeIds();
 }
 
