@@ -1,0 +1,6 @@
+*.accdb
+*.laccdb
+*.qlnhv
+access_inventory.json
+backend_inventory.json
+access_defs/

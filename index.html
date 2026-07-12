@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0f766e">
+  <title>QLNHV Cá nhân</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header><div><h1>QLNHV</h1><p>Quản lý nghiệp vụ cá nhân</p></div><button id="lockBtn" class="ghost" hidden>Khóa</button></header>
+  <main>
+    <section id="welcome" class="card narrow">
+      <h2 id="welcomeTitle">Thiết lập lần đầu</h2>
+      <p id="welcomeText">Tạo mật khẩu để bảo vệ ứng dụng trên thiết bị này.</p>
+      <form id="unlockForm"><label>Mật khẩu<input id="password" type="password" minlength="8" required autocomplete="current-password"></label><button type="submit">Tiếp tục</button></form>
+      <p class="note">Mật khẩu không được gửi lên Internet. Nếu quên mật khẩu, bản sao lưu mã hóa sẽ không thể khôi phục.</p>
+    </section>
+
+    <section id="app" hidden>
+      <nav><button data-view="dashboard" class="active">Tổng quan</button><button data-view="records">Hồ sơ</button><button data-view="backup">Sao lưu</button></nav>
+      <div id="dashboard" class="view">
+        <div class="stats"><article><strong id="recordCount">0</strong><span>Hồ sơ</span></article><article><strong id="companyCount">0</strong><span>Doanh nghiệp</span></article><article><strong id="updatedAt">—</strong><span>Cập nhật gần nhất</span></article></div>
+        <div class="card"><h2>An toàn dữ liệu</h2><p>Dữ liệu chỉ nằm trên thiết bị này. Hãy xuất bản sao lưu mã hóa lên Google Drive sau mỗi buổi làm việc.</p></div>
+      </div>
+      <div id="records" class="view" hidden>
+        <div class="toolbar"><input id="search" type="search" placeholder="Tìm mã hồ sơ, MST, tên doanh nghiệp…"><button id="newRecord">Thêm hồ sơ</button></div>
+        <div class="card table-wrap"><table><thead><tr><th>Mã hồ sơ</th><th>Ngày nhận</th><th>MST</th><th>Doanh nghiệp</th><th>Thủ tục</th><th></th></tr></thead><tbody id="recordRows"></tbody></table><p id="emptyRecords" class="empty">Chưa có hồ sơ.</p></div>
+      </div>
+      <div id="backup" class="view" hidden>
+        <div class="grid"><article class="card"><h2>Xuất sao lưu</h2><p>Tạo một file đã mã hóa để tải lên Google Drive.</p><button id="exportBtn">Tạo file sao lưu</button></article><article class="card"><h2>Khôi phục</h2><p>Chọn file <code>.qlnhv</code>. Dữ liệu hiện tại sẽ được thay thế sau khi xác nhận.</p><input id="importFile" type="file" accept=".qlnhv,application/json"><button id="importBtn">Khôi phục từ file</button></article></div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="recordDialog"><form id="recordForm" method="dialog"><h2>Thông tin hồ sơ</h2><input id="recordId" type="hidden"><div class="form-grid"><label>Mã hồ sơ<input id="mshs" required maxlength="100"></label><label>Ngày nhận<input id="ngayNhan" type="date"></label><label>Mã số thuế<input id="mst" maxlength="50"></label><label>Tên doanh nghiệp<input id="company" maxlength="255"></label><label class="wide">Thủ tục<input id="procedure" maxlength="255"></label><label class="wide">Ghi chú<textarea id="note" rows="3"></textarea></label></div><div class="actions"><button value="cancel" class="ghost">Hủy</button><button id="saveRecord" value="default">Lưu</button></div></form></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js" defer></script>
+</body>
+</html>
