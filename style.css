@@ -21,12 +21,14 @@
   --ink-soft:#3C4A66;
   --paper:#F7F5EF;
   --paper-2:#FFFFFF;
-  --seal:#B23A2E;
-  --seal-dark:#8E2E24;
-  --sage:#4C7A73;
-  --sage-bg:#E7EFEC;
+  --seal:#1F7A5C;
+  --seal-dark:#155C45;
+  --sage:#2E8B67;
+  --sage-bg:#E4F2EA;
   --amber:#C08A2E;
   --amber-bg:#FBF1DE;
+  --danger:#B23A2E;
+  --danger-dark:#8E2E24;
   --line:#E4E0D6;
   --line-dark:#D6D1C2;
   --radius:10px;
@@ -94,6 +96,7 @@ body{
 
 .sidebar-foot{ padding-top:16px; border-top:1px solid rgba(255,255,255,.12); }
 .conn-status{ font-size:12px; font-family:'IBM Plex Mono', monospace; }
+.author-credit{ font-size:11px; color:#7C86A3; margin-top:8px; font-family:'IBM Plex Mono', monospace; }
 .conn-pending{ color:#D7B36B; }
 .conn-ok{ color:#8FCBB9; }
 .conn-error{ color:#E39187; }
@@ -127,7 +130,7 @@ body{
 .btn-outline{ background:var(--paper-2); border-color:var(--line-dark); color:var(--ink); }
 .btn-outline:hover{ background:#F1EFE7; }
 .btn-ghost{ background:transparent; color:var(--ink-soft); padding:6px 8px; font-weight:500; }
-.btn-danger{ background:var(--paper-2); border-color:var(--seal); color:var(--seal); }
+.btn-danger{ background:var(--paper-2); border-color:var(--danger); color:var(--danger); }
 .btn-sm{ padding:5px 10px; font-size:12.5px; border-radius:6px; }
 
 /* ---------------- Card / Table ---------------- */
@@ -169,7 +172,8 @@ tbody tr:hover{ background:#FBFAF6; }
 .badge-neutral{ color:#8A8371; background:#F1EFE7; }
 .badge-amber{ color:var(--amber); background:var(--amber-bg); }
 .badge-sage{ color:var(--sage); background:var(--sage-bg); }
-.badge-seal{ color:var(--seal); background:#FBEAE7; }
+.badge-seal{ color:var(--seal); background:#E4F2EA; }
+.badge-danger{ color:var(--danger); background:#FBEAE7; }
 
 /* ---------------- Form ---------------- */
 .form-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px 20px; }
@@ -232,7 +236,7 @@ fieldset.subsection legend{
   font-size:13.5px; box-shadow:0 8px 20px rgba(0,0,0,.2);
   animation:toastIn .18s ease;
 }
-.toast.error{ background:var(--seal-dark); }
+.toast.error{ background:var(--danger-dark); }
 @keyframes toastIn{ from{ opacity:0; transform:translateY(6px);} to{ opacity:1; transform:translateY(0);} }
 
 /* ---------------- Toolbar ---------------- */
