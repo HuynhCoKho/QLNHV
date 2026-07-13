@@ -3,7 +3,7 @@
 // SPA don gian (khong dung framework) — goi thang API Apps Script
 // ============================================================
 
-const DB = { KhachHang: [], ChuyenVien: [], TTHC: [], TyGia: [], HoSo: [], NhomNghiepVu: [], TinhThanh: [], PhuongXa: [], QG: [], TKNHTONN: [], BCMoTKnTONN: [] };
+const DB = { KhachHang: [], ChuyenVien: [], TTHC: [], TyGia: [], HoSo: [], Khoanvay: [], NhomNghiepVu: [], TinhThanh: [], PhuongXa: [], QG: [], TKNHTONN: [], BCMoTKnTONN: [] };
 
 const TRANGTHAI_HOSO = ['Chưa tiếp nhận', 'Đã tiếp nhận', 'Bổ sung hồ sơ', 'Đang xử lý', 'Đã xử lý'];
 const LOAI_TTHC_OPTIONS = ['Trực tuyến toàn trình', 'Thường'];
@@ -134,6 +134,7 @@ async function loadAll() {
   DB.TTHC = await apiGet('list', { sheet: 'TTHC' });
   DB.TyGia = await apiGet('list', { sheet: 'TyGia' });
   DB.HoSo = await apiGet('list', { sheet: 'HoSo' });
+  DB.Khoanvay = await apiGet('list', { sheet: 'Khoanvay' });
   DB.NhomNghiepVu = await apiGet('list', { sheet: 'NhomNghiepVu' });
   DB.TinhThanh = await apiGet('list', { sheet: 'TinhThanh' });
   DB.PhuongXa = await apiGet('list', { sheet: 'PhuongXa' });
@@ -176,6 +177,11 @@ function normalizeIds() {
     if (r.NguyenTeDauTu) r.NguyenTeDauTu = String(r.NguyenTeDauTu);
     ['NgayTiepNhan','NgayHenTra','NgayVanBan','NgayYeuCauBoSung'].forEach(k => { r[k] = fmtDateVN(r[k]); });
   });
+  DB.Khoanvay.forEach(r => {
+    r['MÃ SỐ KV'] = String(r['MÃ SỐ KV'] || '');
+    r['MÃ KH'] = String(r['MÃ KH'] || '');
+    r['NGÀY VBXN'] = fmtDateVN(r['NGÀY VBXN']);
+  });
   DB.TyGia.forEach(r => { r.NgayCapNhat = fmtDateVN(r.NgayCapNhat); });
 }
 
@@ -196,7 +202,8 @@ const ROUTES = {
   tinhthanh: { title: 'Tỉnh/Thành phố', render: renderTinhThanh },
   phuongxa: { title: 'Phường/Xã', render: renderPhuongXa },
   quocgia: { title: 'Quốc gia', render: renderQuocGia },
-  tknton: { title: 'Tài khoản ngoại tệ ở nước ngoài', render: renderTKNT }
+  tknton: { title: 'Tài khoản ngoại tệ ở nước ngoài', render: renderTKNT },
+  khoanvay: { title: 'Lịch sử khoản vay nước ngoài', render: renderKhoanVay }
 };
 
 // route <-> ten sheet trong Google Sheet (dung de sap xep lai sidebar theo dung thu tu tab)
@@ -210,7 +217,8 @@ const NAV_ITEMS = [
   { route: 'tinhthanh', sheet: 'TinhThanh', label: 'Tỉnh/Thành phố' },
   { route: 'phuongxa', sheet: 'PhuongXa', label: 'Phường/Xã' },
   { route: 'quocgia', sheet: 'QG', label: 'Quốc gia' },
-  { route: 'tknton', sheet: 'TKNHTONN', label: 'TK ngoại tệ ở NN' }
+  { route: 'tknton', sheet: 'TKNHTONN', label: 'TK ngoại tệ ở NN' },
+  { route: 'khoanvay', sheet: 'Khoanvay', label: 'Khoản vay nước ngoài' }
 ];
 
 async function buildSidebarNav() {

@@ -415,3 +415,13 @@ body:not(.auth-locked) .auth-gate{
   .auth-password-row{ flex-direction:column; }
   .auth-toggle{ width:100%; height:40px; }
 }
+
+/* Khoản vay nước ngoài */
+.group-row td{background:#e7f1ed;border-top:2px solid var(--seal);color:var(--ink);padding:11px 14px}
+.group-meta{margin-left:14px;color:var(--ink-soft);font-size:12px;font-weight:500}
+.clickable-row{cursor:pointer}.clickable-row:hover td{background:#f7faf8}
+.loan-summary{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
+.loan-summary>div{display:flex;flex-direction:column;gap:5px;padding:14px;border:1px solid var(--line);border-radius:9px;background:var(--paper)}
+.loan-summary span{font-size:11px;font-weight:800;text-transform:uppercase;color:var(--ink-soft)}
+.loan-summary small{color:var(--ink-soft)}
+@media(max-width:700px){.loan-summary{grid-template-columns:1fr}.group-meta{display:block;margin:4px 0 0}}
