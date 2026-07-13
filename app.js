@@ -3,7 +3,7 @@
 // SPA don gian (khong dung framework) — goi thang API Apps Script
 // ============================================================
 
-const DB = { KhachHang: [], ChuyenVien: [], TTHC: [], TyGia: [], HoSo: [], NhomNghiepVu: [] };
+const DB = { KhachHang: [], ChuyenVien: [], TTHC: [], TyGia: [], HoSo: [], NhomNghiepVu: [], TinhThanh: [], PhuongXa: [] };
 
 const TRANGTHAI_HOSO = ['Chưa tiếp nhận', 'Đã tiếp nhận', 'Bổ sung hồ sơ', 'Đang xử lý', 'Đã xử lý'];
 const LOAI_TTHC_OPTIONS = ['Trực tuyến toàn trình', 'Thường'];
@@ -130,6 +130,8 @@ async function loadAll() {
   DB.TyGia = await apiGet('list', { sheet: 'TyGia' });
   DB.HoSo = await apiGet('list', { sheet: 'HoSo' });
   DB.NhomNghiepVu = await apiGet('list', { sheet: 'NhomNghiepVu' });
+  DB.TinhThanh = await apiGet('list', { sheet: 'TinhThanh' });
+  DB.PhuongXa = await apiGet('list', { sheet: 'PhuongXa' });
   normalizeIds();
 }
 
@@ -142,6 +144,8 @@ function normalizeIds() {
   DB.TTHC.forEach(r => { r.MaTTHC = String(r.MaTTHC); });
   DB.TyGia.forEach(r => { r.MaNgoaiTe = String(r.MaNgoaiTe); });
   DB.NhomNghiepVu.forEach(r => { r.TenNhom = String(r.TenNhom); });
+  DB.TinhThanh.forEach(r => { r.TenTinh = String(r.TenTinh); });
+  DB.PhuongXa.forEach(r => { r.TenPhuongXa = String(r.TenPhuongXa); });
   DB.HoSo.forEach(r => {
     r.MaHoSo = String(r.MaHoSo);
     r.MaKH = String(r.MaKH);
@@ -165,7 +169,9 @@ const ROUTES = {
   tthc: { title: 'Danh mục thủ tục hành chính', render: renderTTHC },
   chuyenvien: { title: 'Chuyên viên', render: renderChuyenVien },
   tygia: { title: 'Tỷ giá', render: renderTyGia },
-  nhomnghiepvu: { title: 'Nhóm nghiệp vụ', render: renderNhomNghiepVu }
+  nhomnghiepvu: { title: 'Nhóm nghiệp vụ', render: renderNhomNghiepVu },
+  tinhthanh: { title: 'Tỉnh/Thành phố', render: renderTinhThanh },
+  phuongxa: { title: 'Phường/Xã', render: renderPhuongXa }
 };
 
 function route() {
@@ -460,8 +466,14 @@ function openKHForm(rec) {
         <div class="field span-2"><label>Tên khách hàng</label><input type="text" name="TenKhachHang" value="${esc(rec.TenKhachHang || '')}" required /></div>
 
         <div class="field"><label>Số nhà, tên đường</label><input type="text" name="DiaChiSo" value="${esc(rec.DiaChiSo || '')}" /></div>
-        <div class="field"><label>Phường/Xã</label><input type="text" name="DiaChiPhuongXa" value="${esc(rec.DiaChiPhuongXa || '')}" /></div>
-        <div class="field"><label>Tỉnh/Thành phố</label><input type="text" name="DiaChiTinhTP" value="${esc(rec.DiaChiTinhTP || '')}" /></div>
+        <div class="field"><label>Phường/Xã</label><select name="DiaChiPhuongXa">
+          <option value="">— chọn phường/xã —</option>
+          ${DB.PhuongXa.map(p => `<option value="${esc(p.TenPhuongXa)}" ${rec.DiaChiPhuongXa === p.TenPhuongXa ? 'selected' : ''}>${esc(p.TenPhuongXa)}</option>`).join('')}
+        </select></div>
+        <div class="field"><label>Tỉnh/Thành phố</label><select name="DiaChiTinhTP">
+          <option value="">— chọn tỉnh/thành —</option>
+          ${DB.TinhThanh.map(t => `<option value="${esc(t.TenTinh)}" ${rec.DiaChiTinhTP === t.TenTinh ? 'selected' : ''}>${esc(t.TenTinh)}</option>`).join('')}
+        </select></div>
         <div class="field"><label>Số điện thoại</label><input type="tel" name="SoDienThoai" value="${esc(rec.SoDienThoai || '')}" /></div>
 
         <div class="field"><label>Email</label><input type="email" name="Email" value="${esc(rec.Email || '')}" /></div>
@@ -734,4 +746,132 @@ async function deleteRecord(sheet, id, idField, rerender) {
   } catch (err) { toast(err.message, true); }
 }
 
+// ============================================================
+function renderTinhThanh() {
+  document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" id="btnNewTT">+ Tỉnh/Thành mới</button>`;
+  document.getElementById('btnNewTT').onclick = () => openTinhThanhForm();
+  const view = document.getElementById('view');
+  view.innerHTML = `
+    <div class="toolbar"><input type="text" class="search-input" id="ttSearch" placeholder="Tìm theo tên tỉnh/thành…" /></div>
+    <div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>Tỉnh/Thành phố</th><th>Sáp nhập từ</th><th>Trung tâm hành chính</th><th></th></tr></thead>
+    <tbody id="ttBody"></tbody></table></div></div>`;
+  const draw = () => {
+    const q = (document.getElementById('ttSearch').value || '').toLowerCase();
+    const rows = DB.TinhThanh.filter(r => !q || r.TenTinh.toLowerCase().includes(q));
+    const body = document.getElementById('ttBody');
+    if (!rows.length) { body.innerHTML = `<tr><td colspan="4"><div class="empty-state"><h3>Chưa có tỉnh/thành nào</h3></div></td></tr>`; return; }
+    body.innerHTML = rows.map(r => `
+      <tr>
+        <td>${esc(r.TenTinh)}</td>
+        <td class="muted">${esc(r.TinhSapNhap)}</td>
+        <td class="muted">${esc(r.TTHC)}</td>
+        <td class="cell-actions">
+          <button class="btn btn-outline btn-sm" data-edit="${esc(r.TenTinh)}">Sửa</button>
+          <button class="btn btn-danger btn-sm" data-del="${esc(r.TenTinh)}">Xóa</button>
+        </td>
+      </tr>`).join('');
+    body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openTinhThanhForm(DB.TinhThanh.find(x => x.TenTinh === b.dataset.edit)));
+    body.querySelectorAll('[data-del]').forEach(b => b.onclick = () => deleteRecord('TinhThanh', b.dataset.del, 'TenTinh', renderTinhThanh));
+  };
+  document.getElementById('ttSearch').oninput = draw;
+  draw();
+}
+function openTinhThanhForm(rec) {
+  const isEdit = !!rec;
+  rec = rec || {};
+  const bodyHtml = `
+    <form id="ttForm">
+      <div class="form-grid cols-1">
+        <div class="field"><label>Tên tỉnh/thành phố</label><input type="text" name="TenTinh" value="${esc(rec.TenTinh || '')}" ${isEdit ? 'readonly' : ''} required /></div>
+        <div class="field"><label>Sáp nhập từ (nếu có)</label><input type="text" name="TinhSapNhap" value="${esc(rec.TinhSapNhap || '')}" /></div>
+        <div class="field"><label>Trung tâm hành chính (TTHC)</label><input type="text" name="TTHC" value="${esc(rec.TTHC || '')}" /></div>
+        <div class="field"><label>Ghi chú</label><textarea name="GhiChu">${esc(rec.GhiChu || '')}</textarea></div>
+      </div>
+      <div class="modal-foot"><button type="button" class="btn btn-outline" id="ttCancel">Hủy</button><button type="submit" class="btn btn-primary">Lưu</button></div>
+    </form>`;
+  openModal(isEdit ? 'Sửa tỉnh/thành phố' : 'Tỉnh/thành phố mới', bodyHtml, (el) => {
+    el.querySelector('#ttCancel').onclick = closeModal;
+    el.querySelector('#ttForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(e.target).entries());
+      data.TenTinh = data.TenTinh.trim();
+      try {
+        if (isEdit) await apiPost('update', 'TinhThanh', data, data.TenTinh);
+        else await apiPost('create', 'TinhThanh', data);
+        toast('Đã lưu ' + data.TenTinh);
+        closeModal();
+        await reloadSheet('TinhThanh');
+        renderTinhThanh();
+      } catch (err) { toast(err.message, true); }
+    };
+  });
+}
+
+// ============================================================
+// MODULE: PHUONG/XA
+// ============================================================
+function renderPhuongXa() {
+  document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" id="btnNewPX">+ Phường/Xã mới</button>`;
+  document.getElementById('btnNewPX').onclick = () => openPhuongXaForm();
+  const view = document.getElementById('view');
+  view.innerHTML = `
+    <div class="toolbar"><input type="text" class="search-input" id="pxSearch" placeholder="Tìm theo tên phường/xã…" /></div>
+    <div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>Phường/Xã</th><th>Nhóm địa bàn</th><th>CVPT Vay</th><th>CVPT Vàng</th><th>Ghi chú</th><th></th></tr></thead>
+    <tbody id="pxBody"></tbody></table></div></div>`;
+  const draw = () => {
+    const q = (document.getElementById('pxSearch').value || '').toLowerCase();
+    const rows = DB.PhuongXa.filter(r => !q || r.TenPhuongXa.toLowerCase().includes(q));
+    const body = document.getElementById('pxBody');
+    if (!rows.length) { body.innerHTML = `<tr><td colspan="6"><div class="empty-state"><h3>Chưa có phường/xã nào</h3></div></td></tr>`; return; }
+    body.innerHTML = rows.map(r => `
+      <tr>
+        <td>${esc(r.TenPhuongXa)}</td>
+        <td class="mono">${esc(r.NhomDiaBan)}</td>
+        <td class="mono">${esc(r.CVPTVay)}</td>
+        <td class="mono">${esc(r.CVPTVang)}</td>
+        <td class="muted">${esc(r.GhiChu)}</td>
+        <td class="cell-actions">
+          <button class="btn btn-outline btn-sm" data-edit="${esc(r.TenPhuongXa)}">Sửa</button>
+          <button class="btn btn-danger btn-sm" data-del="${esc(r.TenPhuongXa)}">Xóa</button>
+        </td>
+      </tr>`).join('');
+    body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openPhuongXaForm(DB.PhuongXa.find(x => x.TenPhuongXa === b.dataset.edit)));
+    body.querySelectorAll('[data-del]').forEach(b => b.onclick = () => deleteRecord('PhuongXa', b.dataset.del, 'TenPhuongXa', renderPhuongXa));
+  };
+  document.getElementById('pxSearch').oninput = draw;
+  draw();
+}
+function openPhuongXaForm(rec) {
+  const isEdit = !!rec;
+  rec = rec || {};
+  const bodyHtml = `
+    <form id="pxForm">
+      <div class="form-grid">
+        <div class="field span-2"><label>Tên phường/xã</label><input type="text" name="TenPhuongXa" value="${esc(rec.TenPhuongXa || '')}" ${isEdit ? 'readonly' : ''} required /></div>
+        <div class="field"><label>Nhóm địa bàn</label><input type="text" name="NhomDiaBan" value="${esc(rec.NhomDiaBan || '')}" /></div>
+        <div class="field"><label>CVPT Vay</label><input type="text" name="CVPTVay" value="${esc(rec.CVPTVay || '')}" /></div>
+        <div class="field"><label>CVPT Vàng</label><input type="text" name="CVPTVang" value="${esc(rec.CVPTVang || '')}" /></div>
+        <div class="field span-2"><label>Ghi chú</label><textarea name="GhiChu">${esc(rec.GhiChu || '')}</textarea></div>
+      </div>
+      <div class="modal-foot"><button type="button" class="btn btn-outline" id="pxCancel">Hủy</button><button type="submit" class="btn btn-primary">Lưu</button></div>
+    </form>`;
+  openModal(isEdit ? 'Sửa phường/xã' : 'Phường/xã mới', bodyHtml, (el) => {
+    el.querySelector('#pxCancel').onclick = closeModal;
+    el.querySelector('#pxForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(e.target).entries());
+      data.TenPhuongXa = data.TenPhuongXa.trim();
+      try {
+        if (isEdit) await apiPost('update', 'PhuongXa', data, data.TenPhuongXa);
+        else await apiPost('create', 'PhuongXa', data);
+        toast('Đã lưu ' + data.TenPhuongXa);
+        closeModal();
+        await reloadSheet('PhuongXa');
+        renderPhuongXa();
+      } catch (err) { toast(err.message, true); }
+    };
+  });
+}
 boot();
