@@ -17,9 +17,7 @@ function loanHasGovernmentGuarantee(loan) {
 
 function isLoanProcedure(maTTHC) {
   const t = tthcRow(maTTHC);
-  if (!t) return false;
-  return loaiDacBietOf(t.NhomNghiepVu) === 'VayTraNoNuocNgoai' ||
-    /vay\s*,?\s*trả nợ nước ngoài/i.test(t.NhomNghiepVu || '');
+  return !!t && isSpecialGroup(t.NhomNghiepVu);
 }
 
 // Dữ liệu lịch sử cũ có thể chưa điền MÃ KH trong Khoanvay. Khi đó lấy

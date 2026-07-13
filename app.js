@@ -3,15 +3,14 @@
 // SPA don gian (khong dung framework) — goi thang API Apps Script
 // ============================================================
 
-const DB = { KhachHang: [], ChuyenVien: [], TTHC: [], TyGia: [], HoSo: [], Khoanvay: [], NhomNghiepVu: [], TinhThanh: [], PhuongXa: [], QG: [], TKNHTONN: [], BCMoTKnTONN: [] };
+const DB = { KhachHang: [], ChuyenVien: [], TTHC: [], TyGia: [], HoSo: [], Khoanvay: [], ChoVay: [], NhomNghiepVu: [], TinhThanh: [], PhuongXa: [], QG: [], TKNHTONN: [], BCMoTKnTONN: [] };
 
 const TRANGTHAI_HOSO = ['Chưa tiếp nhận', 'Đã tiếp nhận', 'Bổ sung hồ sơ', 'Đang xử lý', 'Đã xử lý'];
 const LOAI_TTHC_OPTIONS = ['Trực tuyến toàn trình', 'Thường'];
 const TRANGTHAI_TTHC_OPTIONS = ['Đang hiệu lực', 'Hủy', 'Chưa hiệu lực'];
 const LOAI_DAC_BIET_OPTIONS = [
-  { value: '', label: 'Không (nghiệp vụ thường)' },
-  { value: 'VayTraNoNuocNgoai', label: 'Vay, trả nợ nước ngoài' },
-  { value: 'DauTuRaNuocNgoai', label: 'Đầu tư ra nước ngoài' }
+  { value: 'Thuong', label: 'Thường' },
+  { value: 'DacBiet', label: 'Đặc biệt' }
 ];
 
 // ---------------- API helpers ----------------
@@ -100,6 +99,7 @@ function tthcName(ma) { const r = tthcRow(ma); return r ? r.TenTTHC : ''; }
 function rateRow(code) { return DB.TyGia.find(x => x.MaNgoaiTe === code); }
 function nhomNghiepVuRow(ten) { return DB.NhomNghiepVu.find(x => sameText(x.TenNhom, ten)); }
 function loaiDacBietOf(tenNhom) { const r = nhomNghiepVuRow(tenNhom); return r ? r.LoaiDacBiet : ''; }
+function isSpecialGroup(tenNhom) { const v=loaiDacBietOf(tenNhom); return !!v && v !== 'Thuong'; }
 function toUSD(amount, code) {
   if (amount === '' || amount === null || amount === undefined || !code) return null;
   const r = rateRow(code);
@@ -135,6 +135,7 @@ async function loadAll() {
   DB.TyGia = await apiGet('list', { sheet: 'TyGia' });
   DB.HoSo = await apiGet('list', { sheet: 'HoSo' });
   DB.Khoanvay = await apiGet('list', { sheet: 'Khoanvay' });
+  DB.ChoVay = await apiGet('list', { sheet: 'ChoVay' });
   DB.NhomNghiepVu = await apiGet('list', { sheet: 'NhomNghiepVu' });
   DB.TinhThanh = await apiGet('list', { sheet: 'TinhThanh' });
   DB.PhuongXa = await apiGet('list', { sheet: 'PhuongXa' });
@@ -174,11 +175,17 @@ function normalizeIds() {
     r.MaTTHC = String(r.MaTTHC);
     r.MaCV = String(r.MaCV);
     if (r.NguyenTeVay) r.NguyenTeVay = String(r.NguyenTeVay);
+    if (r.NguyenTeChoVay) r.NguyenTeChoVay = String(r.NguyenTeChoVay);
     if (r.NguyenTeDauTu) r.NguyenTeDauTu = String(r.NguyenTeDauTu);
     ['NgayTiepNhan','NgayHenTra','NgayVanBan','NgayYeuCauBoSung'].forEach(k => { r[k] = fmtDateVN(r[k]); });
   });
   DB.Khoanvay.forEach(r => {
     r['MÃ SỐ KV'] = String(r['MÃ SỐ KV'] || '');
+    r['MÃ KH'] = String(r['MÃ KH'] || '');
+    r['NGÀY VBXN'] = fmtDateVN(r['NGÀY VBXN']);
+  });
+  DB.ChoVay.forEach(r => {
+    r['MÃ SỐ KHOẢN CHO VAY'] = String(r['MÃ SỐ KHOẢN CHO VAY'] || '');
     r['MÃ KH'] = String(r['MÃ KH'] || '');
     r['NGÀY VBXN'] = fmtDateVN(r['NGÀY VBXN']);
   });
@@ -203,7 +210,8 @@ const ROUTES = {
   phuongxa: { title: 'Phường/Xã', render: renderPhuongXa },
   quocgia: { title: 'Quốc gia', render: renderQuocGia },
   tknton: { title: 'Tài khoản ngoại tệ ở nước ngoài', render: renderTKNT },
-  khoanvay: { title: 'Lịch sử khoản vay nước ngoài', render: renderKhoanVay }
+  khoanvay: { title: 'Lịch sử khoản vay nước ngoài', render: renderKhoanVay },
+  chovay: { title: 'Cho vay ra nước ngoài', render: renderChoVay }
 };
 
 // route <-> ten sheet trong Google Sheet (dung de sap xep lai sidebar theo dung thu tu tab)
@@ -218,7 +226,8 @@ const NAV_ITEMS = [
   { route: 'phuongxa', sheet: 'PhuongXa', label: 'Phường/Xã' },
   { route: 'quocgia', sheet: 'QG', label: 'Quốc gia' },
   { route: 'tknton', sheet: 'TKNHTONN', label: 'TK ngoại tệ ở NN' },
-  { route: 'khoanvay', sheet: 'Khoanvay', label: 'Khoản vay nước ngoài' }
+  { route: 'khoanvay', sheet: 'Khoanvay', label: 'Khoản vay nước ngoài' },
+  { route: 'chovay', sheet: 'ChoVay', label: 'Cho vay ra nước ngoài' }
 ];
 
 async function buildSidebarNav() {
@@ -489,6 +498,15 @@ function openHoSoForm(rec) {
           </div>
         </fieldset>
 
+        <fieldset class="subsection" id="fsChoVay"><legend>Cho vay ra nước ngoài</legend>
+          <div class="form-grid">
+            <div class="field mono"><label>Mã số khoản cho vay</label><input type="text" name="MaKhoanChoVay" value="${esc(rec.MaKhoanChoVay || '')}" /></div>
+            <div class="field"><label>Nguyên tệ</label><select name="NguyenTeChoVay" id="fNguyenTeChoVay"><option value="">—</option>${nteOptions}</select></div>
+            <div class="field"><label>Số tiền cho vay (nguyên tệ)</label><input type="text" name="SoTienChoVayNguyenTe" id="fSoTienChoVay" value="${rec.SoTienChoVayNguyenTe ? fmtNum(rec.SoTienChoVayNguyenTe) : ''}" /></div>
+            <div class="field"><label>Quy đổi USD (tỷ giá hiện tại)</label><input type="text" id="fSoTienChoVayUSD" readonly /></div>
+          </div>
+        </fieldset>
+
         <fieldset class="subsection" id="fsDauTu"><legend>Đầu tư ra nước ngoài</legend>
           <div class="form-grid">
             <div class="field mono"><label>Mã số dự án</label><input type="text" name="MaDuAn" value="${esc(rec.MaDuAn || '')}" /></div>
@@ -508,23 +526,29 @@ function openHoSoForm(rec) {
 
   openModal(isEdit ? 'Sửa hồ sơ ' + rec.MaHoSo : 'Tạo hồ sơ mới', bodyHtml, (el) => {
     if (rec.NguyenTeVay) el.querySelector('#fNguyenTeVay').value = rec.NguyenTeVay;
+    if (rec.NguyenTeChoVay) el.querySelector('#fNguyenTeChoVay').value = rec.NguyenTeChoVay;
     if (rec.NguyenTeDauTu) el.querySelector('#fNguyenTeDauTu').value = rec.NguyenTeDauTu;
 
     const updateVisibility = () => {
       const trangThai = el.querySelector('#fTrangThai').value;
       const tthc = tthcRow(el.querySelector('#fMaTTHC').value);
       const isDone = trangThai === 'Đã xử lý';
-      const dacBiet = tthc ? loaiDacBietOf(tthc.NhomNghiepVu) : '';
+      const dacBiet = tthc ? isSpecialGroup(tthc.NhomNghiepVu) : false;
       el.querySelector('#fsKetQua').style.display = isDone ? '' : 'none';
       el.querySelector('#fsBoSung').style.display = (trangThai === 'Bổ sung hồ sơ') ? '' : 'none';
-      el.querySelector('#fsVay').style.display = (isDone && dacBiet === 'VayTraNoNuocNgoai') ? '' : 'none';
-      el.querySelector('#fsDauTu').style.display = (isDone && dacBiet === 'DauTuRaNuocNgoai') ? '' : 'none';
+      el.querySelector('#fsVay').style.display = (isDone && dacBiet) ? '' : 'none';
+      el.querySelector('#fsChoVay').style.display = (isDone && dacBiet) ? '' : 'none';
+      el.querySelector('#fsDauTu').style.display = (isDone && dacBiet) ? '' : 'none';
     };
     const updateUSD = () => {
       const amt = parseNum(el.querySelector('#fSoTienVay').value);
       const code = el.querySelector('#fNguyenTeVay').value;
       const usd = toUSD(amt, code);
       el.querySelector('#fSoTienVayUSD').value = usd === null ? '' : '≈ $' + fmtNum(usd);
+      const amtChoVay = parseNum(el.querySelector('#fSoTienChoVay').value);
+      const codeChoVay = el.querySelector('#fNguyenTeChoVay').value;
+      const usdChoVay = toUSD(amtChoVay, codeChoVay);
+      el.querySelector('#fSoTienChoVayUSD').value = usdChoVay === null ? '' : '≈ $' + fmtNum(usdChoVay);
       const amt2 = parseNum(el.querySelector('#fSoTienDT').value);
       const code2 = el.querySelector('#fNguyenTeDauTu').value;
       const usd2 = toUSD(amt2, code2);
@@ -536,6 +560,8 @@ function openHoSoForm(rec) {
     el.querySelector('#fTrangThai').onchange = updateVisibility;
     el.querySelector('#fSoTienVay').oninput = updateUSD;
     el.querySelector('#fNguyenTeVay').onchange = updateUSD;
+    el.querySelector('#fSoTienChoVay').oninput = updateUSD;
+    el.querySelector('#fNguyenTeChoVay').onchange = updateUSD;
     el.querySelector('#fSoTienDT').oninput = updateUSD;
     el.querySelector('#fNguyenTeDauTu').onchange = updateUSD;
     updateVisibility(); updateUSD();
@@ -576,6 +602,9 @@ function openHoSoForm(rec) {
           SoTienVayNguyenTe: parseNum(fd.get('SoTienVayNguyenTe')),
           NguyenTeVay: fd.get('NguyenTeVay') || '',
           HetNo: el.querySelector('#fHetNo').checked,
+          MaKhoanChoVay: fd.get('MaKhoanChoVay') || '',
+          SoTienChoVayNguyenTe: parseNum(fd.get('SoTienChoVayNguyenTe')),
+          NguyenTeChoVay: fd.get('NguyenTeChoVay') || '',
           MaDuAn: fd.get('MaDuAn') || '',
           SoTienDangKyNguyenTe: parseNum(fd.get('SoTienDangKyNguyenTe')),
           NguyenTeDauTu: fd.get('NguyenTeDauTu') || '',
@@ -971,10 +1000,9 @@ function renderNhomNghiepVu() {
   document.getElementById('btnNewNNV').onclick = () => openNNVForm();
   const view = document.getElementById('view');
   view.innerHTML = `
-    ${statsBarHtml(DB.NhomNghiepVu, 'LoaiDacBiet', (v) => (LOAI_DAC_BIET_OPTIONS.find(o => o.value === v) || {}).label || 'Không')}
+    <div class="stats-bar"><div class="stat-chip stat-total">Tổng số: <b>${DB.NhomNghiepVu.length}</b></div><div class="stat-chip">Thường: <b>${DB.NhomNghiepVu.filter(x=>!isSpecialGroup(x.TenNhom)).length}</b></div><div class="stat-chip">Đặc biệt: <b>${DB.NhomNghiepVu.filter(x=>isSpecialGroup(x.TenNhom)).length}</b></div></div>
     <div class="card" style="margin-bottom:16px"><div style="padding:14px 18px" class="muted">
-      Danh mục này quyết định các trường nhập thêm khi xử lý <b>Hồ sơ</b> (ví dụ: khoản vay, dự án đầu tư).
-      Chọn "Loại đặc biệt" đúng ý nghĩa nghiệp vụ, còn <b>Tên nhóm</b> bạn có thể đặt tên tự do theo ý muốn.
+      Chỉ phân loại nhóm là <b>Thường</b> hoặc <b>Đặc biệt</b>. Nhóm đặc biệt có thể sử dụng các trường mã nghiệp vụ, số tiền và nguyên tệ khi xử lý hồ sơ; tên nhóm được đặt tự do.
     </div></div>
     <div class="card"><div class="table-wrap"><table>
     <thead><tr><th>Tên nhóm</th><th>Loại đặc biệt</th><th>Mô tả</th><th></th></tr></thead>
@@ -985,7 +1013,7 @@ function renderNhomNghiepVu() {
     body.innerHTML = DB.NhomNghiepVu.map(r => `
       <tr data-view="${esc(r.TenNhom)}">
         <td>${esc(r.TenNhom)}</td>
-        <td class="muted">${esc((LOAI_DAC_BIET_OPTIONS.find(o => o.value === r.LoaiDacBiet) || {}).label || 'Không')}</td>
+        <td class="muted">${isSpecialGroup(r.TenNhom) ? 'Đặc biệt' : 'Thường'}</td>
         <td class="muted">${esc(r.MoTa || '')}</td>
         <td class="cell-actions">
           <button class="btn btn-outline btn-sm" data-edit="${esc(r.TenNhom)}">Sửa</button>
@@ -1000,20 +1028,21 @@ function renderNhomNghiepVu() {
 }
 const NNV_DETAIL_FIELDS = [
   ['TenNhom', 'Tên nhóm nghiệp vụ'],
-  ['LoaiDacBiet', 'Loại đặc biệt', (v) => (LOAI_DAC_BIET_OPTIONS.find(o => o.value === v) || {}).label || 'Không'],
+  ['LoaiDacBiet', 'Loại', (v) => v && v !== 'Thuong' ? 'Đặc biệt' : 'Thường'],
   ['MoTa', 'Mô tả'],
   ['GhiChu', 'Ghi chú']
 ];
 function openNNVForm(rec) {
   const isEdit = !!rec;
-  rec = rec || { LoaiDacBiet: '' };
+  rec = rec || { LoaiDacBiet: 'Thuong' };
+  const normalizedType = rec.LoaiDacBiet && rec.LoaiDacBiet !== 'Thuong' ? 'DacBiet' : 'Thuong';
   const bodyHtml = `
     <form id="nnvForm">
       <div class="form-grid cols-1">
         <div class="field"><label>Tên nhóm nghiệp vụ</label><input type="text" name="TenNhom" value="${esc(rec.TenNhom || '')}" ${isEdit ? 'readonly' : ''} required /></div>
-        <div class="field"><label>Loại đặc biệt</label><select name="LoaiDacBiet">
-          ${LOAI_DAC_BIET_OPTIONS.map(o => `<option value="${o.value}" ${rec.LoaiDacBiet === o.value ? 'selected' : ''}>${o.label}</option>`).join('')}
-        </select><span class="hint">Quyết định các trường nhập thêm khi xử lý hồ sơ (Khoản vay / Dự án đầu tư)</span></div>
+        <div class="field"><label>Loại nghiệp vụ</label><select name="LoaiDacBiet">
+          ${LOAI_DAC_BIET_OPTIONS.map(o => `<option value="${o.value}" ${normalizedType === o.value ? 'selected' : ''}>${o.label}</option>`).join('')}
+        </select><span class="hint">Nghiệp vụ đặc biệt được nhập thêm mã nghiệp vụ, số tiền và nguyên tệ khi xử lý hồ sơ.</span></div>
         <div class="field"><label>Mô tả</label><input type="text" name="MoTa" value="${esc(rec.MoTa || '')}" /></div>
         <div class="field"><label>Ghi chú</label><textarea name="GhiChu">${esc(rec.GhiChu || '')}</textarea></div>
       </div>
