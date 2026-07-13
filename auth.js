@@ -1,5 +1,5 @@
 (function () {
-  const PASSWORD_HASH = '6ed57ffc3cfbdc4ff0405a5e06f252709bbd91a6a1539d946f1b63bd3a1a7311';
+  const PASSWORD_HASH = '192ac13b114660e9a02b15f0f548d85fc88169a57f21c8860dad7ff549b8501b';
   const SESSION_KEY = 'qlnhv-auth-ok';
 
   async function sha256Hex(value) {
