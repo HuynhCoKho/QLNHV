@@ -1,5 +1,5 @@
-const CACHE='qlnhv-v15';
-const ASSETS=['./','./index.html','./style.css','./app.js','./tknt-activity.js','./tknt.js','./manifest.webmanifest'];
+const CACHE='qlnhv-v16';
+const ASSETS=['./','./index.html','./style.css','./app.js','./tknt-activity.js','./tknt.js','./report-layout.js','./manifest.webmanifest'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS))));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))));
 self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request))));
