@@ -229,6 +229,29 @@ function openModal(title, bodyHtml, onMount) {
 }
 function closeModal() { document.getElementById('modalRoot').innerHTML = ''; }
 
+// ---------------- Sap xep & phan trang (danh cho bang co nhieu du lieu: HoSo, KhachHang...) ----------------
+function parseVNDateSort(s) {
+  if (!s) return 0;
+  const parts = String(s).split('/');
+  if (parts.length !== 3) return 0;
+  const [d, m, y] = parts;
+  return new Date(Number(y), Number(m) - 1, Number(d)).getTime();
+}
+function pagerHtml(page, totalPages, totalItems, idPrefix) {
+  if (totalItems === 0) return '';
+  return `<div class="pager">
+    <button class="btn btn-outline btn-sm" id="${idPrefix}Prev" ${page <= 1 ? 'disabled' : ''}>← Trước</button>
+    <span class="pager-info">Trang ${page}/${totalPages} — ${totalItems} bản ghi</span>
+    <button class="btn btn-outline btn-sm" id="${idPrefix}Next" ${page >= totalPages ? 'disabled' : ''}>Sau →</button>
+  </div>`;
+}
+function wirePager(idPrefix, getPage, setPage, totalPages, redraw) {
+  const prevBtn = document.getElementById(idPrefix + 'Prev');
+  const nextBtn = document.getElementById(idPrefix + 'Next');
+  if (prevBtn) prevBtn.onclick = () => { if (getPage() > 1) { setPage(getPage() - 1); redraw(); } };
+  if (nextBtn) nextBtn.onclick = () => { if (getPage() < totalPages) { setPage(getPage() + 1); redraw(); } };
+}
+
 // ---------------- Stats bar helper ----------------
 function statsBarHtml(rows, groupField, labelFn) {
   const total = rows.length;
@@ -284,19 +307,31 @@ function renderHoSo() {
         <th>Mã hồ sơ</th><th>Khách hàng</th><th>TTHC</th><th>Ngày tiếp nhận</th><th>Hẹn trả</th><th>Chuyên viên</th><th>Trạng thái</th><th></th>
       </tr></thead>
       <tbody id="hsBody"></tbody>
-    </table></div></div>`;
+    </table></div>
+    <div id="hsPager"></div>
+    </div>`;
 
+  const PAGE_SIZE = 50;
+  let page = 1;
   const draw = () => {
     const q = (document.getElementById('hsSearch').value || '').toLowerCase();
     const ft = document.getElementById('hsFilterTrangThai').value;
-    const rows = DB.HoSo.filter(r => {
+    const filtered = DB.HoSo.filter(r => {
       const matchQ = !q || r.MaHoSo.toLowerCase().includes(q) || khName(r.MaKH).toLowerCase().includes(q);
       const matchT = !ft || r.TrangThai === ft;
       return matchQ && matchT;
     });
+    // Ho so moi nhat (theo ngay tiep nhan) hien len tren
+    filtered.sort((a, b) => parseVNDateSort(b.NgayTiepNhan) - parseVNDateSort(a.NgayTiepNhan));
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    if (page > totalPages) page = totalPages;
+    const rows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
     const body = document.getElementById('hsBody');
-    if (!rows.length) {
+    if (!filtered.length) {
       body.innerHTML = `<tr><td colspan="8"><div class="empty-state"><h3>Chưa có hồ sơ nào</h3><p>Bấm "+ Hồ sơ mới" để bắt đầu.</p></div></td></tr>`;
+      document.getElementById('hsPager').innerHTML = '';
       return;
     }
     body.innerHTML = rows.map(r => `
@@ -316,9 +351,12 @@ function renderHoSo() {
     body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openHoSoForm(DB.HoSo.find(x => x.MaHoSo === b.dataset.edit)));
     body.querySelectorAll('[data-del]').forEach(b => b.onclick = () => deleteRecord('HoSo', b.dataset.del, 'MaHoSo', renderHoSo));
     wireRowDetail(body, rows, 'MaHoSo', HOSO_DETAIL_FIELDS, 'Hồ sơ');
+
+    document.getElementById('hsPager').innerHTML = pagerHtml(page, totalPages, filtered.length, 'hs');
+    wirePager('hs', () => page, (p) => { page = p; }, totalPages, draw);
   };
-  document.getElementById('hsSearch').oninput = draw;
-  document.getElementById('hsFilterTrangThai').onchange = draw;
+  document.getElementById('hsSearch').oninput = () => { page = 1; draw(); };
+  document.getElementById('hsFilterTrangThai').onchange = () => { page = 1; draw(); };
   draw();
 }
 
@@ -557,12 +595,28 @@ function renderKhachHang() {
     <div class="card"><div class="table-wrap"><table>
       <thead><tr><th>Mã KH</th><th>Loại</th><th>Tên khách hàng</th><th>Địa chỉ</th><th>SĐT</th><th>Email</th><th></th></tr></thead>
       <tbody id="khBody"></tbody>
-    </table></div></div>`;
+    </table></div>
+    <div id="khPager"></div>
+    </div>`;
+
+  const PAGE_SIZE = 50;
+  let page = 1;
   const draw = () => {
     const q = (document.getElementById('khSearch').value || '').toLowerCase();
-    const rows = DB.KhachHang.filter(r => !q || r.MaKH.toLowerCase().includes(q) || (r.TenKhachHang || '').toLowerCase().includes(q));
+    const filtered = DB.KhachHang.filter(r => !q || r.MaKH.toLowerCase().includes(q) || (r.TenKhachHang || '').toLowerCase().includes(q));
+    // Sap xep A-Z theo ten khach hang
+    filtered.sort((a, b) => (a.TenKhachHang || '').localeCompare(b.TenKhachHang || '', 'vi'));
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    if (page > totalPages) page = totalPages;
+    const rows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
     const body = document.getElementById('khBody');
-    if (!rows.length) { body.innerHTML = `<tr><td colspan="7"><div class="empty-state"><h3>Chưa có khách hàng nào</h3></div></td></tr>`; return; }
+    if (!filtered.length) {
+      body.innerHTML = `<tr><td colspan="7"><div class="empty-state"><h3>Chưa có khách hàng nào</h3></div></td></tr>`;
+      document.getElementById('khPager').innerHTML = '';
+      return;
+    }
     body.innerHTML = rows.map(r => `
       <tr data-view="${esc(r.MaKH)}">
         <td class="mono">${esc(r.MaKH)}</td>
@@ -579,8 +633,11 @@ function renderKhachHang() {
     body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openKHForm(DB.KhachHang.find(x => x.MaKH === b.dataset.edit)));
     body.querySelectorAll('[data-del]').forEach(b => b.onclick = () => deleteRecord('KhachHang', b.dataset.del, 'MaKH', renderKhachHang));
     wireRowDetail(body, rows, 'MaKH', KHACHHANG_DETAIL_FIELDS, 'Khách hàng');
+
+    document.getElementById('khPager').innerHTML = pagerHtml(page, totalPages, filtered.length, 'kh');
+    wirePager('kh', () => page, (p) => { page = p; }, totalPages, draw);
   };
-  document.getElementById('khSearch').oninput = draw;
+  document.getElementById('khSearch').oninput = () => { page = 1; draw(); };
   draw();
 }
 function loaiKHLabel(r) {
