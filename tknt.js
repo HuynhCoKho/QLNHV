@@ -6,10 +6,11 @@ const tkntOptions=(a,v)=>a.map(x=>`<option value="${esc(x)}" ${String(x)===Strin
 function tkntStatusBadge(v){return `<span class="badge ${v==='ĐANG HOẠT ĐỘNG'?'badge-sage':v==='ĐÃ ĐÓNG'||v==='CHẤM DỨT HĐ'?'badge-neutral':'badge-amber'}">${esc(v||'Chưa xác định')}</span>`}
 
 function renderTKNT(){
-  document.getElementById('topbarActions').innerHTML='<button class="btn btn-outline" id="btnMissingReport">DN chưa báo cáo</button><button class="btn btn-outline" id="btnQuarterReport">Báo cáo quý tổng hợp</button><button class="btn btn-primary" id="btnNewTKNT">+ Tài khoản mới</button>';
+  document.getElementById('topbarActions').innerHTML='<button class="btn btn-outline" id="btnActivityReport">Tình hình hoạt động</button><button class="btn btn-outline" id="btnMissingReport">DN chưa báo cáo</button><button class="btn btn-outline" id="btnQuarterReport">Báo cáo quý tổng hợp</button><button class="btn btn-primary" id="btnNewTKNT">+ Tài khoản mới</button>';
   document.getElementById('btnNewTKNT').onclick=()=>openTKNTForm();
   document.getElementById('btnQuarterReport').onclick=()=>openTKNTQuarterPrompt();
   document.getElementById('btnMissingReport').onclick=()=>openTKNTMissingPrompt();
+  document.getElementById('btnActivityReport').onclick=()=>openTKNTActivityPrompt();
   document.getElementById('view').innerHTML=`${statsBarHtml(DB.TKNHTONN,'TRẠNG THÁI')}<div class="toolbar"><input class="search-input" id="tkntSearch" placeholder="Tìm mã TKNT, khách hàng, giấy phép, ngân hàng…"><select class="select-filter" id="tkntStatus"><option value="">Tất cả trạng thái</option>${TKNT_STATUS.map(x=>`<option>${x}</option>`).join('')}</select></div><div class="card"><div class="table-wrap"><table><thead><tr><th>Mã TKNT</th><th>Quốc gia / Ngân hàng</th><th>Giấy phép</th><th>NT</th><th>Hạn mức</th><th>Thời hạn</th><th>Trạng thái</th><th>BC</th><th></th></tr></thead><tbody id="tkntBody"></tbody></table></div><div id="tkntPager"></div></div>`;
   const PAGE_SIZE=20;let page=1;
   const statusRank=v=>v==='ĐANG HOẠT ĐỘNG'?0:v==='CHƯA MỞ'?1:v==='HẾT HẠN HĐ'?2:v==='CHẤM DỨT HĐ'?3:v==='ĐÃ ĐÓNG'?4:5;
