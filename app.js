@@ -841,12 +841,29 @@ function openTTHCForm(rec) {
 // ============================================================
 // MODULE: CHUYEN VIEN
 // ============================================================
+const CHUYENVIEN_STATUS_OPTIONS = [
+  ['on', 'Đang làm việc'],
+  ['off', 'Ngừng'],
+  ['chuyen_cong_tac', 'Chuyển công tác'],
+  ['nghi_huu', 'Nghỉ hưu'],
+  ['nghi_viec', 'Nghỉ việc'],
+  ['chuyen_phong', 'Chuyển phòng'],
+  ['bld', 'BLĐ']
+];
+function chuyenVienStatusLabel(value) {
+  const item = CHUYENVIEN_STATUS_OPTIONS.find(([code]) => code === value);
+  return item ? item[1] : (value || '—');
+}
+function chuyenVienStatusBadge(value) {
+  const classes = { on: 'badge-sage', bld: 'badge-seal', chuyen_cong_tac: 'badge-amber', chuyen_phong: 'badge-amber', nghi_huu: 'badge-neutral', nghi_viec: 'badge-danger', off: 'badge-neutral' };
+  return `<span class="badge ${classes[value] || 'badge-neutral'}">${esc(chuyenVienStatusLabel(value))}</span>`;
+}
 function renderChuyenVien() {
   document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" id="btnNewCV">+ Chuyên viên mới</button>`;
   document.getElementById('btnNewCV').onclick = () => openCVForm();
   const view = document.getElementById('view');
   view.innerHTML = `
-    ${statsBarHtml(DB.ChuyenVien, 'TrangThai', (v) => v === 'on' ? 'Đang làm việc' : 'Ngừng')}
+    ${statsBarHtml(DB.ChuyenVien, 'TrangThai', chuyenVienStatusLabel)}
     <div class="card"><div class="table-wrap"><table>
     <thead><tr><th>Mã CV</th><th>Họ tên</th><th>SĐT</th><th>Email</th><th>Trạng thái</th><th></th></tr></thead>
     <tbody id="cvBody"></tbody></table></div></div>`;
@@ -856,7 +873,7 @@ function renderChuyenVien() {
     body.innerHTML = DB.ChuyenVien.map(r => `
       <tr data-view="${esc(r.MaCV)}">
         <td class="mono">${esc(r.MaCV)}</td><td>${esc(r.HoTen)}</td><td class="mono">${esc(r.SoDienThoai)}</td><td>${esc(r.Email)}</td>
-        <td><span class="badge ${r.TrangThai === 'on' ? 'badge-sage' : 'badge-neutral'}">${r.TrangThai === 'on' ? 'Đang làm việc' : 'Ngừng'}</span></td>
+        <td>${chuyenVienStatusBadge(r.TrangThai)}</td>
         <td class="cell-actions">
           <button class="btn btn-outline btn-sm" data-edit="${esc(r.MaCV)}">Sửa</button>
           <button class="btn btn-danger btn-sm" data-del="${esc(r.MaCV)}">Xóa</button>
@@ -873,7 +890,7 @@ const CHUYENVIEN_DETAIL_FIELDS = [
   ['DiaChi', 'Địa chỉ'],
   ['SoDienThoai', 'Số điện thoại'],
   ['Email', 'Email'],
-  ['TrangThai', 'Trạng thái', (v) => v === 'on' ? 'Đang làm việc' : 'Ngừng'],
+  ['TrangThai', 'Trạng thái', (v) => chuyenVienStatusBadge(v)],
   ['GhiChu', 'Ghi chú']
 ];
 function openCVForm(rec) {
@@ -883,7 +900,7 @@ function openCVForm(rec) {
     <form id="cvForm">
       <div class="form-grid">
         <div class="field mono"><label>Mã chuyên viên</label><input type="text" name="MaCV" value="${esc(rec.MaCV || '')}" ${isEdit ? 'readonly' : ''} required /></div>
-        <div class="field"><label>Trạng thái</label><select name="TrangThai"><option value="on" ${rec.TrangThai === 'on' ? 'selected' : ''}>Đang làm việc</option><option value="off" ${rec.TrangThai === 'off' ? 'selected' : ''}>Ngừng</option></select></div>
+        <div class="field"><label>Trạng thái</label><select name="TrangThai">${CHUYENVIEN_STATUS_OPTIONS.map(([code, label]) => `<option value="${code}" ${rec.TrangThai === code ? 'selected' : ''}>${label}</option>`).join('')}</select></div>
         <div class="field span-2"><label>Họ tên</label><input type="text" name="HoTen" value="${esc(rec.HoTen || '')}" required /></div>
         <div class="field"><label>Số điện thoại</label><input type="tel" name="SoDienThoai" value="${esc(rec.SoDienThoai || '')}" /></div>
         <div class="field"><label>Email</label><input type="email" name="Email" value="${esc(rec.Email || '')}" /></div>
