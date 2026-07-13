@@ -47,7 +47,7 @@ function openTKNTActivityReport(period) {
   let no = 0; const all = [];
   const body = result.groups.map((g,gi) => {
     const sum = activitySum(g.companies); all.push(...g.companies);
-    return `<tr class="activity-province"><td>${tkntRoman(gi)}</td><td><b>${esc(g.province)}</b></td>${activityCells(sum)}</tr>${g.companies.map(x => `<tr><td class="num">${++no}</td><td><b>${esc(x.customer.TenKhachHang)}</b><br><span class="mono muted">${esc(x.customer.MaKH)} · ${x.accounts.size} TK</span></td>${activityCells(x)}</tr>`).join('')}<tr class="activity-subtotal"><td></td><td>Cộng ${esc(g.province)}</td>${activityCells(sum)}</tr>`;
+    return `<tr class="activity-province"><td>${tkntRoman(gi)}</td><td><b>${esc(g.province)}</b></td>${activityCells(sum)}</tr>${g.companies.map(x => `<tr><td class="num">${++no}</td><td><b>${esc(x.customer.TenKhachHang)}</b><br><span class="mono muted">${esc(x.customer.MaKH)} · ${x.accounts.size} TK</span></td>${activityCells(x)}</tr>`).join('')}`;
   }).join('');
   const grand = activitySum(all);
   openModal('Tình hình hoạt động TKNTONN ' + tkntQuarterLabel(period), `<div class="quarter-report-title"><b>BÁO CÁO TÌNH HÌNH HOẠT ĐỘNG TÀI KHOẢN NGOẠI TỆ Ở NƯỚC NGOÀI</b><span>${esc(tkntQuarterLabel(period))} · Đơn vị: USD</span></div>${result.missingRates.length ? `<div class="report-warning">Không tổng hợp được nguyên tệ thiếu tỷ giá: ${esc(result.missingRates.join(', '))}</div>` : ''}<div class="table-wrap activity-report-table"><table><thead><tr><th>TT</th><th>Doanh nghiệp</th><th>Thu</th><th>Chi</th><th>CK VP</th><th>CK Vay</th><th>CK HĐ</th><th>Tổng số dư</th></tr></thead><tbody>${body}<tr class="activity-grand"><td colspan="2">TỔNG CỘNG</td>${activityCells(grand)}</tr></tbody></table></div><div class="modal-foot"><button class="btn btn-outline" id="closeActivityReport">Đóng</button><button class="btn btn-outline" id="excelActivityReport">Xuất Excel</button><button class="btn btn-primary" id="printActivityReport">In / Lưu PDF</button></div>`, el => {
@@ -63,9 +63,9 @@ function exportTKNTActivityExcel(period, groups) {
   const all = [];
   groups.forEach(g => {
     all.push(...g.companies);
-    g.companies.forEach(x => lines.push([clean(g.province),clean(x.customer.MaKH),clean(x.customer.TenKhachHang),x.accounts.size,tkntMillion(x.thu),tkntMillion(x.chi),tkntMillion(x.vp),tkntMillion(x.vay),tkntMillion(x.hd),tkntMillion(x.vp+x.vay+x.hd)].join('\t')));
     const s = activitySum(g.companies);
-    lines.push([clean(g.province),'','CỘNG '+clean(g.province),'',tkntMillion(s.thu),tkntMillion(s.chi),tkntMillion(s.vp),tkntMillion(s.vay),tkntMillion(s.hd),tkntMillion(s.vp+s.vay+s.hd)].join('\t'));
+    lines.push([clean(g.province),'',String(g.province).toUpperCase(),'',tkntMillion(s.thu),tkntMillion(s.chi),tkntMillion(s.vp),tkntMillion(s.vay),tkntMillion(s.hd),tkntMillion(s.vp+s.vay+s.hd)].join('\t'));
+    g.companies.forEach(x => lines.push([clean(g.province),clean(x.customer.MaKH),clean(x.customer.TenKhachHang),x.accounts.size,tkntMillion(x.thu),tkntMillion(x.chi),tkntMillion(x.vp),tkntMillion(x.vay),tkntMillion(x.hd),tkntMillion(x.vp+x.vay+x.hd)].join('\t')));
   });
   const grand = activitySum(all);
   lines.push(['','','TỔNG CỘNG','',tkntMillion(grand.thu),tkntMillion(grand.chi),tkntMillion(grand.vp),tkntMillion(grand.vay),tkntMillion(grand.hd),tkntMillion(grand.vp+grand.vay+grand.hd)].join('\t'));
@@ -75,7 +75,7 @@ function exportTKNTActivityExcel(period, groups) {
 
 function printTKNTActivityReport(period, groups, missingRates) {
   let no=0; const all=[];
-  const rows=groups.map((g,gi)=>{const s=activitySum(g.companies);all.push(...g.companies);return `<tr class="province"><td>${tkntRoman(gi)}</td><td>${esc(String(g.province).toUpperCase())}</td>${activityCells(s)}</tr>${g.companies.map(x=>`<tr><td>${++no}</td><td>${esc(x.customer.TenKhachHang)}<br><span class="mono">${esc(x.customer.MaKH)}</span></td>${activityCells(x)}</tr>`).join('')}<tr class="subtotal"><td></td><td>Cộng ${esc(g.province)}</td>${activityCells(s)}</tr>`;}).join('');
+  const rows=groups.map((g,gi)=>{const s=activitySum(g.companies);all.push(...g.companies);return `<tr class="province"><td>${tkntRoman(gi)}</td><td>${esc(String(g.province).toUpperCase())}</td>${activityCells(s)}</tr>${g.companies.map(x=>`<tr><td>${++no}</td><td>${esc(x.customer.TenKhachHang)}<br><span class="mono">${esc(x.customer.MaKH)}</span></td>${activityCells(x)}</tr>`).join('')}`;}).join('');
   const grand=activitySum(all),w=window.open('','_blank');
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Tình hình TKNT ${period}</title><style>@page{size:A4 landscape;margin:10mm}body{font:10px Arial,sans-serif;color:#111}h1{text-align:center;font-size:16px;margin:0 0 5px}h2{text-align:center;font-size:13px;margin:0 0 8px}.unit{text-align:right;font-style:italic;margin:0 0 6px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #555;padding:4px;vertical-align:top}th{background:#eee}.num{text-align:right}.mono{font-family:monospace}.province{font-weight:bold;background:#dfeee8}.subtotal{font-weight:bold;background:#f3f3f3}.grand{font-weight:bold;background:#ddd}.warning{color:#a33;margin-bottom:8px}</style></head><body><h1>BÁO CÁO TÌNH HÌNH HOẠT ĐỘNG TÀI KHOẢN NGOẠI TỆ Ở NƯỚC NGOÀI</h1><h2>${esc(tkntQuarterLabel(period).toUpperCase())}</h2><div class="unit">Đơn vị tính: USD</div>${missingRates.length?`<div class="warning">Thiếu tỷ giá: ${esc(missingRates.join(', '))}</div>`:''}<table><thead><tr><th>TT</th><th>DOANH NGHIỆP</th><th>THU</th><th>CHI</th><th>CK VP</th><th>CK VAY</th><th>CK HĐ</th><th>TỔNG SỐ DƯ</th></tr></thead><tbody>${rows}<tr class="grand"><td colspan="2">TỔNG CỘNG</td>${activityCells(grand)}</tr></tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`);
   w.document.close();
