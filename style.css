@@ -153,6 +153,7 @@ tbody td{ padding:11px 14px; border-bottom:1px solid var(--line); vertical-align
 tbody tr:last-child td{ border-bottom:none; }
 tbody tr:hover{ background:#FBFAF6; }
 .mono{ font-family:'IBM Plex Mono', monospace; font-size:12.5px; }
+.num{ text-align:right; font-variant-numeric:tabular-nums; }
 .muted{ color:var(--ink-soft); }
 .cell-actions{ display:flex; gap:6px; white-space:nowrap; }
 
