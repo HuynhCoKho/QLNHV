@@ -72,11 +72,14 @@ function toISODate(ddmmyyyy) {
 }
 function toVNDate(iso) {
   if (!iso) return '';
-  const parts = iso.split('-');
-  if (parts.length !== 3) return '';
-  const [y, m, d] = parts;
-  return d + '/' + m + '/' + y;
+  const value = String(iso).trim();
+  let m = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return m[1].padStart(2,'0') + '/' + m[2].padStart(2,'0') + '/' + m[3];
+  m = value.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return m[3].padStart(2,'0') + '/' + m[2].padStart(2,'0') + '/' + m[1];
+  return value;
 }
+function fmtDateVN(value) { return toVNDate(value); }
 function esc(s) { return (s === undefined || s === null) ? '' : String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function sameText(a, b) { return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase(); }
 function toast(msg, isError) {
@@ -155,6 +158,9 @@ function normalizeIds() {
   DB.TKNHTONN.forEach(r => {
     r['MÃ TKNT'] = String(r['MÃ TKNT']);
     r['MÃ ĐƠN VỊ'] = String(r['MÃ ĐƠN VỊ']);
+    r['NGÀY GP'] = fmtDateVN(r['NGÀY GP']);
+    r['THỜI HẠN'] = fmtDateVN(r['THỜI HẠN']);
+    r['NGÀY ĐÓNG'] = fmtDateVN(r['NGÀY ĐÓNG']);
   });
   DB.BCMoTKnTONN.forEach(r => {
     r['MÃ TKNT'] = String(r['MÃ TKNT']);
@@ -168,7 +174,9 @@ function normalizeIds() {
     r.MaCV = String(r.MaCV);
     if (r.NguyenTeVay) r.NguyenTeVay = String(r.NguyenTeVay);
     if (r.NguyenTeDauTu) r.NguyenTeDauTu = String(r.NguyenTeDauTu);
+    ['NgayTiepNhan','NgayHenTra','NgayVanBan','NgayYeuCauBoSung'].forEach(k => { r[k] = fmtDateVN(r[k]); });
   });
+  DB.TyGia.forEach(r => { r.NgayCapNhat = fmtDateVN(r.NgayCapNhat); });
 }
 
 async function reloadSheet(sheet) {
@@ -287,7 +295,7 @@ function showRecordDetail(title, record, fieldDefs) {
   const rows = fieldDefs.map(([key, label, fmt]) => {
     let display;
     if (fmt) display = fmt(record[key], record);
-    else display = (record[key] === undefined || record[key] === null || record[key] === '') ? '—' : esc(record[key]);
+    else display = (record[key] === undefined || record[key] === null || record[key] === '') ? '—' : esc(/ngay|ngày|thời hạn/i.test(key) ? fmtDateVN(record[key]) : record[key]);
     return `<div class="detail-row"><div class="detail-label">${esc(label)}</div><div class="detail-value">${display}</div></div>`;
   }).join('');
   openModal(title, `<div class="detail-grid">${rows}</div>`, () => {});
@@ -357,8 +365,8 @@ function renderHoSo() {
         <td class="mono">${esc(r.MaHoSo)}</td>
         <td>${esc(khName(r.MaKH))}<div class="muted mono" style="font-size:11px">${esc(r.MaKH)}</div></td>
         <td>${esc(tthcName(r.MaTTHC))}</td>
-        <td class="mono">${esc(r.NgayTiepNhan)}</td>
-        <td class="mono">${esc(r.NgayHenTra)}</td>
+        <td class="mono">${esc(fmtDateVN(r.NgayTiepNhan))}</td>
+        <td class="mono">${esc(fmtDateVN(r.NgayHenTra))}</td>
         <td>${esc(cvName(r.MaCV) || r.MaCV)}</td>
         <td>${statusBadge(r.TrangThai)}</td>
         <td class="cell-actions">
@@ -921,7 +929,7 @@ function renderTyGia() {
     <tbody>${rows.length ? rows.map(r => {
       const usdPerUnit = r.TyGiaSoUSD ? 1 / Number(r.TyGiaSoUSD) : '';
       return `
-      <tr><td class="mono">${esc(r.MaNgoaiTe)}</td><td class="mono num">${usdPerUnit === '' ? '' : '$' + fmtUSD(usdPerUnit)}</td><td class="mono num">${fmtNum(r.TyGiaSoVND)}</td><td class="muted mono">${esc(r.NgayCapNhat)}</td></tr>
+      <tr><td class="mono">${esc(r.MaNgoaiTe)}</td><td class="mono num">${usdPerUnit === '' ? '' : '$' + fmtUSD(usdPerUnit)}</td><td class="mono num">${fmtNum(r.TyGiaSoVND)}</td><td class="muted mono">${esc(fmtDateVN(r.NgayCapNhat))}</td></tr>
     `;}).join('') : `<tr><td colspan="4"><div class="empty-state"><h3>Chưa có dữ liệu tỷ giá</h3><p>Bấm "Cập nhật tỷ giá live" để lấy tỷ giá mới nhất.</p></div></td></tr>`}
     </tbody></table></div></div>`;
 }
@@ -1231,6 +1239,19 @@ async function deleteQuocGia(id) {
   if (!confirm('Xóa quốc gia này?')) return;
   try { await apiPost('delete', 'QG', {}, id); await reloadSheet('QG'); toast('Đã xóa quốc gia'); renderQuocGia(); } catch(err) { toast(err.message, true); }
 }
+
+function wireVNDateInputs() {
+  document.querySelectorAll('#modalRoot input[type="date"]').forEach(input => {
+    const value = input.value;
+    input.type = 'text';
+    input.value = fmtDateVN(value);
+    input.placeholder = 'dd/mm/yyyy';
+    input.pattern = '(0[1-9]|[12][0-9]|3[01])\\/(0[1-9]|1[0-2])\\/[0-9]{4}';
+    input.title = 'Nhập ngày theo định dạng dd/mm/yyyy';
+    input.inputMode = 'numeric';
+  });
+}
+new MutationObserver(wireVNDateInputs).observe(document.getElementById('modalRoot'), {childList:true, subtree:true});
 
 if (window.QLNHVAuth && typeof window.QLNHVAuth.start === 'function') {
   window.QLNHVAuth.start(boot);
