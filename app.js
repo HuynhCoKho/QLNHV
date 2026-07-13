@@ -1020,20 +1020,20 @@ function renderTinhThanh() {
     <div class="stats-bar"><div class="stat-chip stat-total">Tổng số: <b>${DB.TinhThanh.length}</b></div></div>
     <div class="toolbar"><input type="text" class="search-input" id="ttSearch" placeholder="Tìm theo tên tỉnh/thành…" /></div>
     <div class="card"><div class="table-wrap"><table>
-    <thead><tr><th>Tỉnh/Thành phố</th><th>Sáp nhập từ</th><th>Trung tâm hành chính</th><th></th></tr></thead>
+    <thead><tr><th>Tỉnh/Thành phố</th><th>Sáp nhập từ</th><th>Trung tâm hành chính</th><th>BC TKNTONN</th><th>Thao tác</th></tr></thead>
     <tbody id="ttBody"></tbody></table></div></div>`;
   const draw = () => {
     const q = (document.getElementById('ttSearch').value || '').toLowerCase();
     const rows = DB.TinhThanh.filter(r => !q || r.TenTinh.toLowerCase().includes(q));
     const body = document.getElementById('ttBody');
-    if (!rows.length) { body.innerHTML = `<tr><td colspan="4"><div class="empty-state"><h3>Chưa có tỉnh/thành nào</h3></div></td></tr>`; return; }
+    if (!rows.length) { body.innerHTML = `<tr><td colspan="5"><div class="empty-state"><h3>Chưa có tỉnh/thành nào</h3></div></td></tr>`; return; }
     body.innerHTML = rows.map(r => `
       <tr data-view="${esc(r.TenTinh)}">
         <td>${esc(r.TenTinh)}</td>
         <td class="muted">${esc(r.TinhSapNhap)}</td>
         <td class="muted">${esc(r.TTHC)}</td>
+        <td><button class="btn btn-primary btn-sm" data-report="${esc(r.TenTinh)}">Xem báo cáo</button></td>
         <td class="cell-actions">
-          <button class="btn btn-primary btn-sm" data-report="${esc(r.TenTinh)}">Xem báo cáo</button>
           <button class="btn btn-outline btn-sm" data-edit="${esc(r.TenTinh)}">Sửa</button>
           <button class="btn btn-danger btn-sm" data-del="${esc(r.TenTinh)}">Xóa</button>
         </td>
