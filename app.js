@@ -52,6 +52,12 @@ function fmtRate(n) {
   if (n === '' || n === null || n === undefined || isNaN(n)) return '';
   return Number(n).toLocaleString('vi-VN', { maximumFractionDigits: 4 });
 }
+function fmtUSD(n) {
+  if (n === '' || n === null || n === undefined || isNaN(n)) return '';
+  // gia tri 1 don vi ngoai te quy USD co the rat nho (vd 1 VND ~ 0.00003 USD)
+  // nen can nhieu chu so thap phan hon so voi ty gia thong thuong
+  return Number(n).toLocaleString('vi-VN', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+}
 function parseNum(v) {
   if (v === '' || v === null || v === undefined) return '';
   const n = Number(String(v).replace(/\./g, '').replace(/,/g, '.'));
@@ -642,10 +648,12 @@ function renderTyGia() {
   const view = document.getElementById('view');
   const rows = [...DB.TyGia].sort((a, b) => a.MaNgoaiTe.localeCompare(b.MaNgoaiTe));
   view.innerHTML = `<div class="card"><div class="table-wrap"><table>
-    <thead><tr><th>Mã ngoại tệ</th><th>1 USD =</th><th>Quy đổi VND</th><th>Cập nhật lúc</th></tr></thead>
-    <tbody>${rows.length ? rows.map(r => `
-      <tr><td class="mono">${esc(r.MaNgoaiTe)}</td><td class="mono">${fmtRate(r.TyGiaSoUSD)}</td><td class="mono">${fmtNum(r.TyGiaSoVND)}</td><td class="muted mono">${esc(r.NgayCapNhat)}</td></tr>
-    `).join('') : `<tr><td colspan="4"><div class="empty-state"><h3>Chưa có dữ liệu tỷ giá</h3><p>Bấm "Cập nhật tỷ giá live" để lấy tỷ giá mới nhất.</p></div></td></tr>`}
+    <thead><tr><th>Mã ngoại tệ</th><th>Quy đổi USD (1 đơn vị)</th><th>Quy đổi VND</th><th>Cập nhật lúc</th></tr></thead>
+    <tbody>${rows.length ? rows.map(r => {
+      const usdPerUnit = r.TyGiaSoUSD ? 1 / Number(r.TyGiaSoUSD) : '';
+      return `
+      <tr><td class="mono">${esc(r.MaNgoaiTe)}</td><td class="mono">${usdPerUnit === '' ? '' : '$' + fmtUSD(usdPerUnit)}</td><td class="mono">${fmtNum(r.TyGiaSoVND)}</td><td class="muted mono">${esc(r.NgayCapNhat)}</td></tr>
+    `;}).join('') : `<tr><td colspan="4"><div class="empty-state"><h3>Chưa có dữ liệu tỷ giá</h3><p>Bấm "Cập nhật tỷ giá live" để lấy tỷ giá mới nhất.</p></div></td></tr>`}
     </tbody></table></div></div>`;
 }
 
