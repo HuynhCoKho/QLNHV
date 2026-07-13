@@ -1033,16 +1033,44 @@ function renderTinhThanh() {
         <td class="muted">${esc(r.TinhSapNhap)}</td>
         <td class="muted">${esc(r.TTHC)}</td>
         <td class="cell-actions">
+          <button class="btn btn-primary btn-sm" data-report="${esc(r.TenTinh)}">Xem báo cáo</button>
           <button class="btn btn-outline btn-sm" data-edit="${esc(r.TenTinh)}">Sửa</button>
           <button class="btn btn-danger btn-sm" data-del="${esc(r.TenTinh)}">Xóa</button>
         </td>
       </tr>`).join('');
     body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openTinhThanhForm(DB.TinhThanh.find(x => x.TenTinh === b.dataset.edit)));
+    body.querySelectorAll('[data-report]').forEach(b => b.onclick = () => openTinhThanhTKNTReport(b.dataset.report));
     body.querySelectorAll('[data-del]').forEach(b => b.onclick = () => deleteRecord('TinhThanh', b.dataset.del, 'TenTinh', renderTinhThanh));
     wireRowDetail(body, rows, 'TenTinh', TINHTHANH_DETAIL_FIELDS, 'Tỉnh/Thành phố');
   };
   document.getElementById('ttSearch').oninput = draw;
   draw();
+}
+
+function provinceKey(v) {
+  return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/đ/g, 'd').replace(/\b(thanh pho|tp|tinh)\b/g, '').replace(/[^a-z0-9]/g, '');
+}
+
+function provinceTKNTData(tinh) {
+  const key = provinceKey(tinh);
+  return DB.KhachHang.filter(k => provinceKey(k.DiaChiTinhTP) === key).map(k => {
+    const accounts = DB.TKNHTONN.filter(t => String(t['MÃ ĐƠN VỊ']) === String(k.MaKH) && String(t['TRẠNG THÁI']).trim().toUpperCase() === 'ĐANG HOẠT ĐỘNG');
+    const countries = [...new Set(accounts.map(t => qgName(t['QUỐC GIA'])).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'vi'));
+    return { customer:k, accounts, countries };
+  }).filter(x => x.accounts.length).sort((a,b) => String(a.customer.TenKhachHang).localeCompare(String(b.customer.TenKhachHang), 'vi'));
+}
+
+function openTinhThanhTKNTReport(tinh) {
+  const rows = provinceTKNTData(tinh), countryCount = new Set(rows.flatMap(x => x.countries)).size, accountCount = rows.reduce((n,x) => n + x.accounts.length, 0);
+  const table = rows.length ? rows.map((x,i) => `<tr><td class="num">${i+1}</td><td><b>${esc(x.customer.TenKhachHang)}</b><br><span class="mono muted">${esc(x.customer.MaKH)}</span></td><td>${x.countries.map(c=>`<span class="report-country">${esc(c)}</span>`).join('')}</td><td class="num mono">${x.accounts.length}</td></tr>`).join('') : '<tr><td colspan="4" class="muted">Không có doanh nghiệp đang hoạt động tài khoản ngoại tệ ở nước ngoài.</td></tr>';
+  openModal('Báo cáo tài khoản ngoại tệ - ' + tinh, `<div class="report-summary"><div><span>Doanh nghiệp</span><b>${rows.length}</b></div><div><span>Tài khoản hoạt động</span><b>${accountCount}</b></div><div><span>Quốc gia</span><b>${countryCount}</b></div></div><div class="table-wrap province-report"><table><thead><tr><th>TT</th><th>Tên doanh nghiệp</th><th>Quốc gia mở tài khoản</th><th>Số TK</th></tr></thead><tbody>${table}</tbody></table></div><div class="modal-foot"><button class="btn btn-outline" id="reportClose">Đóng</button><button class="btn btn-primary" id="reportPrint">In / Lưu PDF</button></div>`, el => { el.querySelector('#reportClose').onclick = closeModal; el.querySelector('#reportPrint').onclick = () => printTinhThanhTKNTReport(tinh, rows); });
+}
+
+function printTinhThanhTKNTReport(tinh, rows) {
+  const accountCount = rows.reduce((n,x) => n + x.accounts.length, 0), countryCount = new Set(rows.flatMap(x => x.countries)).size;
+  const w = window.open('', '_blank');
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Báo cáo TKNT - ${esc(tinh)}</title><style>@page{size:A4;margin:16mm}body{font:13px Arial,sans-serif;color:#111}h1{text-align:center;font-size:18px;margin:0 0 6px}h2{text-align:center;font-size:15px;margin:0 0 18px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #555;padding:7px;vertical-align:top}th{background:#eee;text-align:center}.num{text-align:center}.mono{font-family:monospace}.country{display:block;margin-bottom:3px}.summary{margin:0 0 12px;text-align:right}.foot{margin-top:12px;font-weight:bold}@media print{button{display:none}}</style></head><body><h1>DANH SÁCH DOANH NGHIỆP CÓ TÀI KHOẢN NGOẠI TỆ</h1><h2>ĐANG HOẠT ĐỘNG - ${esc(String(tinh).toUpperCase())}</h2><div class="summary">${rows.length} doanh nghiệp · ${accountCount} tài khoản · ${countryCount} quốc gia</div><table><thead><tr><th>TT</th><th>TÊN DOANH NGHIỆP</th><th>QUỐC GIA MỞ TÀI KHOẢN</th><th>SỐ TK</th></tr></thead><tbody>${rows.map((x,i)=>`<tr><td class="num">${i+1}</td><td>${esc(x.customer.TenKhachHang)}<br><span class="mono">${esc(x.customer.MaKH)}</span></td><td>${x.countries.map(c=>`<span class="country">${esc(c)}</span>`).join('')}</td><td class="num">${x.accounts.length}</td></tr>`).join('')}</tbody></table><div class="foot">Tổng cộng: ${rows.length} doanh nghiệp</div><script>window.onload=()=>window.print()<\/script></body></html>`);
+  w.document.close();
 }
 const TINHTHANH_DETAIL_FIELDS = [
   ['TenTinh', 'Tên tỉnh/thành phố'],
