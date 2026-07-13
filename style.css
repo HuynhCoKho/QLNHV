@@ -240,6 +240,25 @@ fieldset.subsection legend{
 .toast.error{ background:var(--danger-dark); }
 @keyframes toastIn{ from{ opacity:0; transform:translateY(6px);} to{ opacity:1; transform:translateY(0);} }
 
+/* ---------------- Stats bar ---------------- */
+.stats-bar{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+.stat-chip{
+  background:var(--paper-2); border:1px solid var(--line); border-radius:8px;
+  padding:8px 14px; font-size:12.5px; color:var(--ink-soft);
+}
+.stat-chip b{ color:var(--ink); font-family:'IBM Plex Mono', monospace; font-size:13px; }
+.stat-total{ border-color:var(--seal); color:var(--seal); }
+.stat-total b{ color:var(--seal); }
+
+/* ---------------- Detail view (click row) ---------------- */
+.detail-grid{ display:flex; flex-direction:column; gap:0; }
+.detail-row{ display:grid; grid-template-columns:180px 1fr; gap:16px; padding:10px 0; border-bottom:1px solid var(--line); }
+.detail-row:last-child{ border-bottom:none; }
+.detail-label{ font-size:12px; font-weight:600; color:var(--ink-soft); }
+.detail-value{ font-size:14px; color:var(--ink); word-break:break-word; }
+.detail-value a{ color:var(--seal); }
+tbody tr[data-view]{ cursor:pointer; }
+
 /* ---------------- Toolbar ---------------- */
 .toolbar{ display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
 .search-input{ min-width:240px; }
