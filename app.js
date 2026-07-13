@@ -110,6 +110,7 @@ async function boot() {
     await apiGet('ping');
     status.textContent = '● đã kết nối';
     status.className = 'conn-status conn-ok';
+    await buildSidebarNav();
     await loadAll();
     route();
   } catch (err) {
@@ -174,6 +175,35 @@ const ROUTES = {
   phuongxa: { title: 'Phường/Xã', render: renderPhuongXa }
 };
 
+// route <-> ten sheet trong Google Sheet (dung de sap xep lai sidebar theo dung thu tu tab)
+const NAV_ITEMS = [
+  { route: 'hoso', sheet: 'HoSo', label: 'Hồ sơ TTHC' },
+  { route: 'khachhang', sheet: 'KhachHang', label: 'Khách hàng' },
+  { route: 'tthc', sheet: 'TTHC', label: 'Danh mục TTHC' },
+  { route: 'chuyenvien', sheet: 'ChuyenVien', label: 'Chuyên viên' },
+  { route: 'tygia', sheet: 'TyGia', label: 'Tỷ giá' },
+  { route: 'nhomnghiepvu', sheet: 'NhomNghiepVu', label: 'Nhóm nghiệp vụ' },
+  { route: 'tinhthanh', sheet: 'TinhThanh', label: 'Tỉnh/Thành phố' },
+  { route: 'phuongxa', sheet: 'PhuongXa', label: 'Phường/Xã' }
+];
+
+async function buildSidebarNav() {
+  let order = [];
+  try { order = await apiGet('sheetOrder'); } catch (e) { /* giu thu tu mac dinh neu loi */ }
+  let items = NAV_ITEMS.slice();
+  if (order && order.length) {
+    items.sort((a, b) => {
+      const ia = order.indexOf(a.sheet), ib = order.indexOf(b.sheet);
+      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+    });
+  }
+  const nav = document.getElementById('nav');
+  nav.innerHTML = items.map((it, idx) => `
+    <a href="#${it.route}" data-route="${it.route}" class="nav-item">
+      <span class="nav-idx">${String(idx + 1).padStart(2, '0')}</span>${it.label}
+    </a>`).join('');
+}
+
 function route() {
   const r = (location.hash || '#hoso').replace('#', '');
   const cfg = ROUTES[r] || ROUTES.hoso;
@@ -199,6 +229,39 @@ function openModal(title, bodyHtml, onMount) {
 }
 function closeModal() { document.getElementById('modalRoot').innerHTML = ''; }
 
+// ---------------- Stats bar helper ----------------
+function statsBarHtml(rows, groupField, labelFn) {
+  const total = rows.length;
+  const counts = {};
+  rows.forEach(r => {
+    const v = (r[groupField] === undefined || r[groupField] === null || r[groupField] === '') ? '(chưa có)' : r[groupField];
+    counts[v] = (counts[v] || 0) + 1;
+  });
+  const chips = Object.keys(counts).map(k => `<div class="stat-chip">${esc(labelFn ? labelFn(k) : k)}: <b>${counts[k]}</b></div>`).join('');
+  return `<div class="stats-bar"><div class="stat-chip stat-total">Tổng số: <b>${total}</b></div>${chips}</div>`;
+}
+
+// ---------------- Detail view (click 1 dòng để xem đầy đủ) ----------------
+function showRecordDetail(title, record, fieldDefs) {
+  const rows = fieldDefs.map(([key, label, fmt]) => {
+    let display;
+    if (fmt) display = fmt(record[key], record);
+    else display = (record[key] === undefined || record[key] === null || record[key] === '') ? '—' : esc(record[key]);
+    return `<div class="detail-row"><div class="detail-label">${esc(label)}</div><div class="detail-value">${display}</div></div>`;
+  }).join('');
+  openModal(title, `<div class="detail-grid">${rows}</div>`, () => {});
+}
+// Gan su kien click xem chi tiet cho tung dong <tr data-view="ID">, tru khi click vao nut Sua/Xoa
+function wireRowDetail(bodyEl, records, idField, fieldDefs, titlePrefix) {
+  bodyEl.querySelectorAll('tr[data-view]').forEach(tr => {
+    tr.onclick = (e) => {
+      if (e.target.closest('button')) return;
+      const rec = records.find(r => String(r[idField]) === tr.dataset.view);
+      if (rec) showRecordDetail(titlePrefix + ' ' + rec[idField], rec, fieldDefs);
+    };
+  });
+}
+
 // ============================================================
 // MODULE: HO SO TTHC
 // ============================================================
@@ -208,6 +271,7 @@ function renderHoSo() {
 
   const view = document.getElementById('view');
   view.innerHTML = `
+    ${statsBarHtml(DB.HoSo, 'TrangThai')}
     <div class="toolbar">
       <input type="text" class="search-input" id="hsSearch" placeholder="Tìm theo mã hồ sơ, tên khách hàng…" />
       <select class="select-filter" id="hsFilterTrangThai">
@@ -236,7 +300,7 @@ function renderHoSo() {
       return;
     }
     body.innerHTML = rows.map(r => `
-      <tr>
+      <tr data-view="${esc(r.MaHoSo)}">
         <td class="mono">${esc(r.MaHoSo)}</td>
         <td>${esc(khName(r.MaKH))}<div class="muted mono" style="font-size:11px">${esc(r.MaKH)}</div></td>
         <td>${esc(tthcName(r.MaTTHC))}</td>
@@ -251,11 +315,36 @@ function renderHoSo() {
       </tr>`).join('');
     body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openHoSoForm(DB.HoSo.find(x => x.MaHoSo === b.dataset.edit)));
     body.querySelectorAll('[data-del]').forEach(b => b.onclick = () => deleteRecord('HoSo', b.dataset.del, 'MaHoSo', renderHoSo));
+    wireRowDetail(body, rows, 'MaHoSo', HOSO_DETAIL_FIELDS, 'Hồ sơ');
   };
   document.getElementById('hsSearch').oninput = draw;
   document.getElementById('hsFilterTrangThai').onchange = draw;
   draw();
 }
+
+const HOSO_DETAIL_FIELDS = [
+  ['MaHoSo', 'Mã số hồ sơ'],
+  ['MaKH', 'Mã khách hàng', (v) => `${esc(v)} — ${esc(khName(v))}`],
+  ['MaTTHC', 'Thủ tục hành chính', (v) => `${esc(v)} — ${esc(tthcName(v))}`],
+  ['NgayTiepNhan', 'Ngày tiếp nhận'],
+  ['NgayHenTra', 'Ngày hẹn trả'],
+  ['MaCV', 'Chuyên viên', (v) => `${esc(v)} — ${esc(cvName(v))}`],
+  ['TrangThai', 'Trạng thái', (v) => statusBadge(v)],
+  ['SoVanBan', 'Số văn bản'],
+  ['NgayVanBan', 'Ngày văn bản'],
+  ['FileVanBan', 'File văn bản đính kèm', (v) => v ? `<a href="${esc(v)}" target="_blank" rel="noopener">Xem file</a>` : '—'],
+  ['SoPhieuBoSung', 'Số phiếu yêu cầu bổ sung'],
+  ['NgayYeuCauBoSung', 'Ngày yêu cầu bổ sung'],
+  ['NoiDungBoSung', 'Nội dung cần bổ sung'],
+  ['MaKhoanVay', 'Mã số khoản vay'],
+  ['SoTienVayNguyenTe', 'Số tiền vay (nguyên tệ)', (v, r) => v ? `${fmtNum(v)} ${esc(r.NguyenTeVay || '')}` : '—'],
+  ['NguyenTeVay', 'Nguyên tệ (vay)'],
+  ['HetNo', 'Hết nợ', (v) => v === true ? 'Có' : 'Không'],
+  ['MaDuAn', 'Mã số dự án đầu tư'],
+  ['SoTienDangKyNguyenTe', 'Số tiền đăng ký chuyển ra (nguyên tệ)', (v, r) => v ? `${fmtNum(v)} ${esc(r.NguyenTeDauTu || '')}` : '—'],
+  ['NguyenTeDauTu', 'Nguyên tệ (đầu tư)'],
+  ['GhiChu', 'Ghi chú']
+];
 
 function statusBadge(t) {
   const map = {
@@ -301,6 +390,18 @@ function openHoSoForm(rec) {
           <div class="form-grid">
             <div class="field"><label>Số văn bản</label><input type="text" name="SoVanBan" value="${esc(rec.SoVanBan || '')}" /></div>
             <div class="field"><label>Ngày văn bản</label><input type="date" name="NgayVanBan" value="${toISODate(rec.NgayVanBan)}" /></div>
+            <div class="field span-2"><label>File văn bản đã xử lý</label>
+              <input type="file" id="fFileVanBan" />
+              ${rec.FileVanBan ? `<span class="hint">Đã có file: <a href="${esc(rec.FileVanBan)}" target="_blank" rel="noopener">xem file hiện tại</a> — chọn file mới nếu muốn thay thế</span>` : ''}
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset class="subsection" id="fsBoSung"><legend>Bổ sung hồ sơ</legend>
+          <div class="form-grid">
+            <div class="field"><label>Số phiếu yêu cầu bổ sung</label><input type="text" name="SoPhieuBoSung" value="${esc(rec.SoPhieuBoSung || '')}" /></div>
+            <div class="field"><label>Ngày yêu cầu bổ sung</label><input type="date" name="NgayYeuCauBoSung" value="${toISODate(rec.NgayYeuCauBoSung)}" /></div>
+            <div class="field span-2"><label>Nội dung cần bổ sung</label><textarea name="NoiDungBoSung">${esc(rec.NoiDungBoSung || '')}</textarea></div>
           </div>
         </fieldset>
 
@@ -343,6 +444,7 @@ function openHoSoForm(rec) {
       const isDone = trangThai === 'Đã xử lý';
       const dacBiet = tthc ? loaiDacBietOf(tthc.NhomNghiepVu) : '';
       el.querySelector('#fsKetQua').style.display = isDone ? '' : 'none';
+      el.querySelector('#fsBoSung').style.display = (trangThai === 'Bổ sung hồ sơ') ? '' : 'none';
       el.querySelector('#fsVay').style.display = (isDone && dacBiet === 'VayTraNoNuocNgoai') ? '' : 'none';
       el.querySelector('#fsDauTu').style.display = (isDone && dacBiet === 'DauTuRaNuocNgoai') ? '' : 'none';
     };
@@ -370,35 +472,76 @@ function openHoSoForm(rec) {
     el.querySelector('#hsForm').onsubmit = async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
-      const data = {
-        MaHoSo: fd.get('MaHoSo').trim(),
-        MaKH: fd.get('MaKH'),
-        MaTTHC: fd.get('MaTTHC'),
-        NgayTiepNhan: toVNDate(fd.get('NgayTiepNhan')),
-        NgayHenTra: toVNDate(fd.get('NgayHenTra')),
-        MaCV: fd.get('MaCV'),
-        TrangThai: fd.get('TrangThai'),
-        SoVanBan: fd.get('SoVanBan') || '',
-        NgayVanBan: toVNDate(fd.get('NgayVanBan')),
-        MaKhoanVay: fd.get('MaKhoanVay') || '',
-        SoTienVayNguyenTe: parseNum(fd.get('SoTienVayNguyenTe')),
-        NguyenTeVay: fd.get('NguyenTeVay') || '',
-        HetNo: el.querySelector('#fHetNo').checked,
-        MaDuAn: fd.get('MaDuAn') || '',
-        SoTienDangKyNguyenTe: parseNum(fd.get('SoTienDangKyNguyenTe')),
-        NguyenTeDauTu: fd.get('NguyenTeDauTu') || '',
-        GhiChu: fd.get('GhiChu') || ''
-      };
+      const submitBtn = el.querySelector('button[type=submit]');
+      submitBtn.disabled = true;
+      const originalBtnText = submitBtn.textContent;
       try {
+        let fileVanBanUrl = rec.FileVanBan || '';
+        const fileInput = el.querySelector('#fFileVanBan');
+        if (fileInput.files && fileInput.files[0]) {
+          submitBtn.textContent = 'Đang tải file lên…';
+          const file = fileInput.files[0];
+          const base64Data = await fileToBase64(file);
+          const uploadRes = await apiUploadFile(file.name, file.type, base64Data, fd.get('MaHoSo').trim());
+          fileVanBanUrl = uploadRes.url;
+        }
+        submitBtn.textContent = 'Đang lưu…';
+        const data = {
+          MaHoSo: fd.get('MaHoSo').trim(),
+          MaKH: fd.get('MaKH'),
+          MaTTHC: fd.get('MaTTHC'),
+          NgayTiepNhan: toVNDate(fd.get('NgayTiepNhan')),
+          NgayHenTra: toVNDate(fd.get('NgayHenTra')),
+          MaCV: fd.get('MaCV'),
+          TrangThai: fd.get('TrangThai'),
+          SoVanBan: fd.get('SoVanBan') || '',
+          NgayVanBan: toVNDate(fd.get('NgayVanBan')),
+          FileVanBan: fileVanBanUrl,
+          SoPhieuBoSung: fd.get('SoPhieuBoSung') || '',
+          NgayYeuCauBoSung: toVNDate(fd.get('NgayYeuCauBoSung')),
+          NoiDungBoSung: fd.get('NoiDungBoSung') || '',
+          MaKhoanVay: fd.get('MaKhoanVay') || '',
+          SoTienVayNguyenTe: parseNum(fd.get('SoTienVayNguyenTe')),
+          NguyenTeVay: fd.get('NguyenTeVay') || '',
+          HetNo: el.querySelector('#fHetNo').checked,
+          MaDuAn: fd.get('MaDuAn') || '',
+          SoTienDangKyNguyenTe: parseNum(fd.get('SoTienDangKyNguyenTe')),
+          NguyenTeDauTu: fd.get('NguyenTeDauTu') || '',
+          GhiChu: fd.get('GhiChu') || ''
+        };
         if (isEdit) await apiPost('update', 'HoSo', data, data.MaHoSo);
         else await apiPost('create', 'HoSo', data);
         toast('Đã lưu hồ sơ ' + data.MaHoSo);
         closeModal();
         await reloadSheet('HoSo');
         renderHoSo();
-      } catch (err) { toast(err.message, true); }
+      } catch (err) {
+        toast(err.message, true);
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalBtnText;
+      }
     };
   });
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = () => reject(new Error('Không đọc được file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function apiUploadFile(fileName, mimeType, base64Data, maHoSo) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: 'uploadFile', fileName, mimeType, base64Data, maHoSo })
+  });
+  const json = await res.json();
+  if (json.error) throw new Error(json.error);
+  return json;
 }
 
 // ============================================================
@@ -409,6 +552,7 @@ function renderKhachHang() {
   document.getElementById('btnNewKH').onclick = () => openKHForm();
   const view = document.getElementById('view');
   view.innerHTML = `
+    ${statsBarHtml(DB.KhachHang, 'Loai', (v) => v === 'ToChuc' ? 'Tổ chức' : v === 'CaNhan' ? 'Cá nhân' : v)}
     <div class="toolbar"><input type="text" class="search-input" id="khSearch" placeholder="Tìm theo mã, tên khách hàng…" /></div>
     <div class="card"><div class="table-wrap"><table>
       <thead><tr><th>Mã KH</th><th>Loại</th><th>Tên khách hàng</th><th>Địa chỉ</th><th>SĐT</th><th>Email</th><th></th></tr></thead>
@@ -420,7 +564,7 @@ function renderKhachHang() {
     const body = document.getElementById('khBody');
     if (!rows.length) { body.innerHTML = `<tr><td colspan="7"><div class="empty-state"><h3>Chưa có khách hàng nào</h3></div></td></tr>`; return; }
     body.innerHTML = rows.map(r => `
-      <tr>
+      <tr data-view="${esc(r.MaKH)}">
         <td class="mono">${esc(r.MaKH)}</td>
         <td>${loaiKHLabel(r)}</td>
         <td>${esc(r.TenKhachHang)}</td>
@@ -434,6 +578,7 @@ function renderKhachHang() {
       </tr>`).join('');
     body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openKHForm(DB.KhachHang.find(x => x.MaKH === b.dataset.edit)));
     body.querySelectorAll('[data-del]').forEach(b => b.onclick = () => deleteRecord('KhachHang', b.dataset.del, 'MaKH', renderKhachHang));
+    wireRowDetail(body, rows, 'MaKH', KHACHHANG_DETAIL_FIELDS, 'Khách hàng');
   };
   document.getElementById('khSearch').oninput = draw;
   draw();
@@ -442,6 +587,20 @@ function loaiKHLabel(r) {
   if (r.Loai === 'ToChuc') return `Tổ chức <span class="muted">(${esc(r.LoaiToChuc || '')})</span>`;
   return `Cá nhân <span class="muted">(${r.LoaiCaNhan === 'NuocNgoai' ? 'nước ngoài' : 'Việt Nam'})</span>`;
 }
+const KHACHHANG_DETAIL_FIELDS = [
+  ['MaKH', 'Mã khách hàng (MST)'],
+  ['MaDinhDanh', 'Mã định danh'],
+  ['TenKhachHang', 'Tên khách hàng'],
+  ['Loai', 'Loại khách hàng', (v) => v === 'ToChuc' ? 'Tổ chức' : 'Cá nhân'],
+  ['LoaiToChuc', 'Loại hình tổ chức'],
+  ['LoaiCaNhan', 'Quốc tịch', (v) => v === 'NuocNgoai' ? 'Người nước ngoài' : (v ? 'Người Việt Nam' : '—')],
+  ['DiaChiSo', 'Số nhà, tên đường'],
+  ['DiaChiPhuongXa', 'Phường/Xã'],
+  ['DiaChiTinhTP', 'Tỉnh/Thành phố'],
+  ['SoDienThoai', 'Số điện thoại'],
+  ['Email', 'Email'],
+  ['GhiChu', 'Ghi chú']
+];
 function openKHForm(rec) {
   const isEdit = !!rec;
   rec = rec || { Loai: 'CaNhan', LoaiCaNhan: 'VietNam' };
@@ -513,14 +672,16 @@ function renderTTHC() {
   document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" id="btnNewTTHC">+ Thủ tục mới</button>`;
   document.getElementById('btnNewTTHC').onclick = () => openTTHCForm();
   const view = document.getElementById('view');
-  view.innerHTML = `<div class="card"><div class="table-wrap"><table>
+  view.innerHTML = `
+    ${statsBarHtml(DB.TTHC, 'TrangThai')}
+    <div class="card"><div class="table-wrap"><table>
     <thead><tr><th>Mã TTHC</th><th>Tên thủ tục</th><th>Loại</th><th>Nhóm nghiệp vụ</th><th>Trạng thái</th><th></th></tr></thead>
     <tbody id="tthcBody"></tbody></table></div></div>`;
   const draw = () => {
     const body = document.getElementById('tthcBody');
     if (!DB.TTHC.length) { body.innerHTML = `<tr><td colspan="6"><div class="empty-state"><h3>Chưa có thủ tục nào</h3></div></td></tr>`; return; }
     body.innerHTML = DB.TTHC.map(r => `
-      <tr>
+      <tr data-view="${esc(r.MaTTHC)}">
         <td class="mono">${esc(r.MaTTHC)}</td>
         <td>${esc(r.TenTTHC)}</td>
         <td class="muted">${esc(r.LoaiTTHC)}</td>
@@ -533,9 +694,18 @@ function renderTTHC() {
       </tr>`).join('');
     body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openTTHCForm(DB.TTHC.find(x => x.MaTTHC === b.dataset.edit)));
     body.querySelectorAll('[data-del]').forEach(b => b.onclick = () => deleteRecord('TTHC', b.dataset.del, 'MaTTHC', renderTTHC));
+    wireRowDetail(body, DB.TTHC, 'MaTTHC', TTHC_DETAIL_FIELDS, 'TTHC');
   };
   draw();
 }
+const TTHC_DETAIL_FIELDS = [
+  ['MaTTHC', 'Mã TTHC'],
+  ['TenTTHC', 'Tên thủ tục hành chính'],
+  ['LoaiTTHC', 'Loại TTHC'],
+  ['NhomNghiepVu', 'Nhóm nghiệp vụ'],
+  ['TrangThai', 'Trạng thái', (v) => tthcStatusBadge(v)],
+  ['GhiChu', 'Ghi chú']
+];
 function tthcStatusBadge(t) {
   if (sameText(t, 'Đang hiệu lực')) return `<span class="badge badge-sage">Đang hiệu lực</span>`;
   if (sameText(t, 'Hủy')) return `<span class="badge badge-danger">Hủy</span>`;
@@ -588,14 +758,16 @@ function renderChuyenVien() {
   document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" id="btnNewCV">+ Chuyên viên mới</button>`;
   document.getElementById('btnNewCV').onclick = () => openCVForm();
   const view = document.getElementById('view');
-  view.innerHTML = `<div class="card"><div class="table-wrap"><table>
+  view.innerHTML = `
+    ${statsBarHtml(DB.ChuyenVien, 'TrangThai', (v) => v === 'on' ? 'Đang làm việc' : 'Ngừng')}
+    <div class="card"><div class="table-wrap"><table>
     <thead><tr><th>Mã CV</th><th>Họ tên</th><th>SĐT</th><th>Email</th><th>Trạng thái</th><th></th></tr></thead>
     <tbody id="cvBody"></tbody></table></div></div>`;
   const draw = () => {
     const body = document.getElementById('cvBody');
     if (!DB.ChuyenVien.length) { body.innerHTML = `<tr><td colspan="6"><div class="empty-state"><h3>Chưa có chuyên viên nào</h3></div></td></tr>`; return; }
     body.innerHTML = DB.ChuyenVien.map(r => `
-      <tr>
+      <tr data-view="${esc(r.MaCV)}">
         <td class="mono">${esc(r.MaCV)}</td><td>${esc(r.HoTen)}</td><td class="mono">${esc(r.SoDienThoai)}</td><td>${esc(r.Email)}</td>
         <td><span class="badge ${r.TrangThai === 'on' ? 'badge-sage' : 'badge-neutral'}">${r.TrangThai === 'on' ? 'Đang làm việc' : 'Ngừng'}</span></td>
         <td class="cell-actions">
@@ -604,9 +776,19 @@ function renderChuyenVien() {
         </td></tr>`).join('');
     body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openCVForm(DB.ChuyenVien.find(x => x.MaCV === b.dataset.edit)));
     body.querySelectorAll('[data-del]').forEach(b => b.onclick = () => deleteRecord('ChuyenVien', b.dataset.del, 'MaCV', renderChuyenVien));
+    wireRowDetail(body, DB.ChuyenVien, 'MaCV', CHUYENVIEN_DETAIL_FIELDS, 'Chuyên viên');
   };
   draw();
 }
+const CHUYENVIEN_DETAIL_FIELDS = [
+  ['MaCV', 'Mã chuyên viên'],
+  ['HoTen', 'Họ tên'],
+  ['DiaChi', 'Địa chỉ'],
+  ['SoDienThoai', 'Số điện thoại'],
+  ['Email', 'Email'],
+  ['TrangThai', 'Trạng thái', (v) => v === 'on' ? 'Đang làm việc' : 'Ngừng'],
+  ['GhiChu', 'Ghi chú']
+];
 function openCVForm(rec) {
   const isEdit = !!rec;
   rec = rec || { TrangThai: 'on' };
@@ -677,6 +859,7 @@ function renderNhomNghiepVu() {
   document.getElementById('btnNewNNV').onclick = () => openNNVForm();
   const view = document.getElementById('view');
   view.innerHTML = `
+    ${statsBarHtml(DB.NhomNghiepVu, 'LoaiDacBiet', (v) => (LOAI_DAC_BIET_OPTIONS.find(o => o.value === v) || {}).label || 'Không')}
     <div class="card" style="margin-bottom:16px"><div style="padding:14px 18px" class="muted">
       Danh mục này quyết định các trường nhập thêm khi xử lý <b>Hồ sơ</b> (ví dụ: khoản vay, dự án đầu tư).
       Chọn "Loại đặc biệt" đúng ý nghĩa nghiệp vụ, còn <b>Tên nhóm</b> bạn có thể đặt tên tự do theo ý muốn.
@@ -688,7 +871,7 @@ function renderNhomNghiepVu() {
     const body = document.getElementById('nnvBody');
     if (!DB.NhomNghiepVu.length) { body.innerHTML = `<tr><td colspan="4"><div class="empty-state"><h3>Chưa có nhóm nghiệp vụ nào</h3></div></td></tr>`; return; }
     body.innerHTML = DB.NhomNghiepVu.map(r => `
-      <tr>
+      <tr data-view="${esc(r.TenNhom)}">
         <td>${esc(r.TenNhom)}</td>
         <td class="muted">${esc((LOAI_DAC_BIET_OPTIONS.find(o => o.value === r.LoaiDacBiet) || {}).label || 'Không')}</td>
         <td class="muted">${esc(r.MoTa || '')}</td>
@@ -699,9 +882,16 @@ function renderNhomNghiepVu() {
       </tr>`).join('');
     body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openNNVForm(DB.NhomNghiepVu.find(x => x.TenNhom === b.dataset.edit)));
     body.querySelectorAll('[data-del]').forEach(b => b.onclick = () => deleteRecord('NhomNghiepVu', b.dataset.del, 'TenNhom', renderNhomNghiepVu));
+    wireRowDetail(body, DB.NhomNghiepVu, 'TenNhom', NNV_DETAIL_FIELDS, 'Nhóm nghiệp vụ');
   };
   draw();
 }
+const NNV_DETAIL_FIELDS = [
+  ['TenNhom', 'Tên nhóm nghiệp vụ'],
+  ['LoaiDacBiet', 'Loại đặc biệt', (v) => (LOAI_DAC_BIET_OPTIONS.find(o => o.value === v) || {}).label || 'Không'],
+  ['MoTa', 'Mô tả'],
+  ['GhiChu', 'Ghi chú']
+];
 function openNNVForm(rec) {
   const isEdit = !!rec;
   rec = rec || { LoaiDacBiet: '' };
@@ -752,6 +942,7 @@ function renderTinhThanh() {
   document.getElementById('btnNewTT').onclick = () => openTinhThanhForm();
   const view = document.getElementById('view');
   view.innerHTML = `
+    <div class="stats-bar"><div class="stat-chip stat-total">Tổng số: <b>${DB.TinhThanh.length}</b></div></div>
     <div class="toolbar"><input type="text" class="search-input" id="ttSearch" placeholder="Tìm theo tên tỉnh/thành…" /></div>
     <div class="card"><div class="table-wrap"><table>
     <thead><tr><th>Tỉnh/Thành phố</th><th>Sáp nhập từ</th><th>Trung tâm hành chính</th><th></th></tr></thead>
@@ -762,7 +953,7 @@ function renderTinhThanh() {
     const body = document.getElementById('ttBody');
     if (!rows.length) { body.innerHTML = `<tr><td colspan="4"><div class="empty-state"><h3>Chưa có tỉnh/thành nào</h3></div></td></tr>`; return; }
     body.innerHTML = rows.map(r => `
-      <tr>
+      <tr data-view="${esc(r.TenTinh)}">
         <td>${esc(r.TenTinh)}</td>
         <td class="muted">${esc(r.TinhSapNhap)}</td>
         <td class="muted">${esc(r.TTHC)}</td>
@@ -773,10 +964,17 @@ function renderTinhThanh() {
       </tr>`).join('');
     body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openTinhThanhForm(DB.TinhThanh.find(x => x.TenTinh === b.dataset.edit)));
     body.querySelectorAll('[data-del]').forEach(b => b.onclick = () => deleteRecord('TinhThanh', b.dataset.del, 'TenTinh', renderTinhThanh));
+    wireRowDetail(body, rows, 'TenTinh', TINHTHANH_DETAIL_FIELDS, 'Tỉnh/Thành phố');
   };
   document.getElementById('ttSearch').oninput = draw;
   draw();
 }
+const TINHTHANH_DETAIL_FIELDS = [
+  ['TenTinh', 'Tên tỉnh/thành phố'],
+  ['TinhSapNhap', 'Sáp nhập từ'],
+  ['TTHC', 'Trung tâm hành chính'],
+  ['GhiChu', 'Ghi chú']
+];
 function openTinhThanhForm(rec) {
   const isEdit = !!rec;
   rec = rec || {};
@@ -816,6 +1014,7 @@ function renderPhuongXa() {
   document.getElementById('btnNewPX').onclick = () => openPhuongXaForm();
   const view = document.getElementById('view');
   view.innerHTML = `
+    <div class="stats-bar"><div class="stat-chip stat-total">Tổng số: <b>${DB.PhuongXa.length}</b></div></div>
     <div class="toolbar"><input type="text" class="search-input" id="pxSearch" placeholder="Tìm theo tên phường/xã…" /></div>
     <div class="card"><div class="table-wrap"><table>
     <thead><tr><th>Phường/Xã</th><th>Nhóm địa bàn</th><th>CVPT Vay</th><th>CVPT Vàng</th><th>Ghi chú</th><th></th></tr></thead>
@@ -826,7 +1025,7 @@ function renderPhuongXa() {
     const body = document.getElementById('pxBody');
     if (!rows.length) { body.innerHTML = `<tr><td colspan="6"><div class="empty-state"><h3>Chưa có phường/xã nào</h3></div></td></tr>`; return; }
     body.innerHTML = rows.map(r => `
-      <tr>
+      <tr data-view="${esc(r.TenPhuongXa)}">
         <td>${esc(r.TenPhuongXa)}</td>
         <td class="mono">${esc(r.NhomDiaBan)}</td>
         <td class="mono">${esc(r.CVPTVay)}</td>
@@ -839,10 +1038,18 @@ function renderPhuongXa() {
       </tr>`).join('');
     body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openPhuongXaForm(DB.PhuongXa.find(x => x.TenPhuongXa === b.dataset.edit)));
     body.querySelectorAll('[data-del]').forEach(b => b.onclick = () => deleteRecord('PhuongXa', b.dataset.del, 'TenPhuongXa', renderPhuongXa));
+    wireRowDetail(body, rows, 'TenPhuongXa', PHUONGXA_DETAIL_FIELDS, 'Phường/Xã');
   };
   document.getElementById('pxSearch').oninput = draw;
   draw();
 }
+const PHUONGXA_DETAIL_FIELDS = [
+  ['TenPhuongXa', 'Tên phường/xã'],
+  ['NhomDiaBan', 'Nhóm địa bàn'],
+  ['CVPTVay', 'CVPT Vay'],
+  ['CVPTVang', 'CVPT Vàng'],
+  ['GhiChu', 'Ghi chú']
+];
 function openPhuongXaForm(rec) {
   const isEdit = !!rec;
   rec = rec || {};
