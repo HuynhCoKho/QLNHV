@@ -3,7 +3,7 @@
 // SPA don gian (khong dung framework) — goi thang API Apps Script
 // ============================================================
 
-const DB = { KhachHang: [], ChuyenVien: [], TTHC: [], TyGia: [], HoSo: [], NhomNghiepVu: [], TinhThanh: [], PhuongXa: [], TKNHTONN: [], BCMoTKnTONN: [] };
+const DB = { KhachHang: [], ChuyenVien: [], TTHC: [], TyGia: [], HoSo: [], NhomNghiepVu: [], TinhThanh: [], PhuongXa: [], QG: [], TKNHTONN: [], BCMoTKnTONN: [] };
 
 const TRANGTHAI_HOSO = ['Chưa tiếp nhận', 'Đã tiếp nhận', 'Bổ sung hồ sơ', 'Đang xử lý', 'Đã xử lý'];
 const LOAI_TTHC_OPTIONS = ['Trực tuyến toàn trình', 'Thường'];
@@ -90,6 +90,7 @@ function toast(msg, isError) {
 
 // ---------------- Lookups ----------------
 function khName(ma) { const r = DB.KhachHang.find(x => x.MaKH === ma); return r ? r.TenKhachHang : ''; }
+function qgName(ma) { const r = DB.QG.find(x => x['MÃ QUỐC GIA'] === String(ma)); return r ? r['TÊN QUỐC GIA'] : String(ma || ''); }
 function cvName(ma) { const r = DB.ChuyenVien.find(x => x.MaCV === ma); return r ? r.HoTen : ''; }
 function tthcRow(ma) { return DB.TTHC.find(x => x.MaTTHC === ma); }
 function tthcName(ma) { const r = tthcRow(ma); return r ? r.TenTTHC : ''; }
@@ -133,6 +134,7 @@ async function loadAll() {
   DB.NhomNghiepVu = await apiGet('list', { sheet: 'NhomNghiepVu' });
   DB.TinhThanh = await apiGet('list', { sheet: 'TinhThanh' });
   DB.PhuongXa = await apiGet('list', { sheet: 'PhuongXa' });
+  DB.QG = await apiGet('list', { sheet: 'QG' });
   DB.TKNHTONN = await apiGet('list', { sheet: 'TKNHTONN' });
   DB.BCMoTKnTONN = await apiGet('list', { sheet: 'BCMoTKnTONN' });
   normalizeIds();
@@ -149,6 +151,7 @@ function normalizeIds() {
   DB.NhomNghiepVu.forEach(r => { r.TenNhom = String(r.TenNhom); });
   DB.TinhThanh.forEach(r => { r.TenTinh = String(r.TenTinh); });
   DB.PhuongXa.forEach(r => { r.TenPhuongXa = String(r.TenPhuongXa); });
+  DB.QG.forEach(r => { r['MÃ QUỐC GIA'] = String(r['MÃ QUỐC GIA']); });
   DB.TKNHTONN.forEach(r => {
     r['MÃ TKNT'] = String(r['MÃ TKNT']);
     r['MÃ ĐƠN VỊ'] = String(r['MÃ ĐƠN VỊ']);
@@ -184,6 +187,7 @@ const ROUTES = {
   nhomnghiepvu: { title: 'Nhóm nghiệp vụ', render: renderNhomNghiepVu },
   tinhthanh: { title: 'Tỉnh/Thành phố', render: renderTinhThanh },
   phuongxa: { title: 'Phường/Xã', render: renderPhuongXa },
+  quocgia: { title: 'Quốc gia', render: renderQuocGia },
   tknton: { title: 'Tài khoản ngoại tệ ở nước ngoài', render: renderTKNT }
 };
 
@@ -197,6 +201,7 @@ const NAV_ITEMS = [
   { route: 'nhomnghiepvu', sheet: 'NhomNghiepVu', label: 'Nhóm nghiệp vụ' },
   { route: 'tinhthanh', sheet: 'TinhThanh', label: 'Tỉnh/Thành phố' },
   { route: 'phuongxa', sheet: 'PhuongXa', label: 'Phường/Xã' },
+  { route: 'quocgia', sheet: 'QG', label: 'Quốc gia' },
   { route: 'tknton', sheet: 'TKNHTONN', label: 'TK ngoại tệ ở NN' }
 ];
 
@@ -1151,6 +1156,39 @@ function openPhuongXaForm(rec) {
     };
   });
 }
+// ============================================================
+// MODULE: QUỐC GIA
+// ============================================================
+function renderQuocGia() {
+  document.getElementById('topbarActions').innerHTML = '<button class="btn btn-primary" id="btnNewQG">+ Quốc gia mới</button>';
+  document.getElementById('btnNewQG').onclick = () => openQuocGiaForm();
+  document.getElementById('view').innerHTML = `<div class="stats-bar"><div class="stat-chip stat-total">Tổng số: <b>${DB.QG.length}</b></div></div><div class="toolbar"><input class="search-input" id="qgSearch" placeholder="Tìm mã, tên hoặc ký hiệu quốc gia…"></div><div class="card"><div class="table-wrap"><table><thead><tr><th>Mã quốc gia</th><th>Tên quốc gia</th><th>Ký hiệu</th><th></th></tr></thead><tbody id="qgBody"></tbody></table></div></div>`;
+  const draw = () => {
+    const q = (document.getElementById('qgSearch').value || '').toLowerCase();
+    const rows = DB.QG.filter(r => !q || [r['MÃ QUỐC GIA'], r['TÊN QUỐC GIA'], r['KÝ HIỆU']].some(v => String(v || '').toLowerCase().includes(q))).sort((a,b) => String(a['TÊN QUỐC GIA']).localeCompare(String(b['TÊN QUỐC GIA']), 'vi'));
+    const body = document.getElementById('qgBody');
+    body.innerHTML = rows.length ? rows.map(r => `<tr><td class="mono">${esc(r['MÃ QUỐC GIA'])}</td><td><b>${esc(r['TÊN QUỐC GIA'])}</b></td><td class="mono">${esc(r['KÝ HIỆU'])}</td><td class="cell-actions"><button class="btn btn-outline btn-sm" data-edit="${esc(r['MÃ QUỐC GIA'])}">Sửa</button><button class="btn btn-danger btn-sm" data-del="${esc(r['MÃ QUỐC GIA'])}">Xóa</button></td></tr>`).join('') : '<tr><td colspan="4"><div class="empty-state"><h3>Chưa có quốc gia phù hợp</h3></div></td></tr>';
+    body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openQuocGiaForm(DB.QG.find(x => x['MÃ QUỐC GIA'] === b.dataset.edit)));
+    body.querySelectorAll('[data-del]').forEach(b => b.onclick = () => deleteQuocGia(b.dataset.del));
+  };
+  document.getElementById('qgSearch').oninput = draw;
+  draw();
+}
+
+function openQuocGiaForm(rec) {
+  const isEdit = !!rec; rec = rec || {};
+  openModal(isEdit ? 'Sửa quốc gia' : 'Thêm quốc gia', `<form id="qgForm"><div class="form-grid"><div class="field"><label>Mã quốc gia *</label><input name="MÃ QUỐC GIA" value="${esc(rec['MÃ QUỐC GIA'] || '')}" ${isEdit ? 'readonly' : ''} required></div><div class="field"><label>Ký hiệu</label><input name="KÝ HIỆU" maxlength="3" value="${esc(rec['KÝ HIỆU'] || '')}"></div><div class="field span-2"><label>Tên quốc gia *</label><input name="TÊN QUỐC GIA" value="${esc(rec['TÊN QUỐC GIA'] || '')}" required></div></div><div class="modal-foot"><button type="button" class="btn btn-outline" id="qgCancel">Hủy</button><button class="btn btn-primary">Lưu</button></div></form>`, el => {
+    el.querySelector('#qgCancel').onclick = closeModal;
+    el.querySelector('form').onsubmit = async e => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target).entries()); d['MÃ QUỐC GIA'] = d['MÃ QUỐC GIA'].trim(); d['TÊN QUỐC GIA'] = d['TÊN QUỐC GIA'].trim(); d['KÝ HIỆU'] = d['KÝ HIỆU'].trim().toUpperCase(); try { await apiPost(isEdit ? 'update' : 'create', 'QG', d, isEdit ? rec['MÃ QUỐC GIA'] : undefined); await reloadSheet('QG'); toast('Đã lưu ' + d['TÊN QUỐC GIA']); closeModal(); renderQuocGia(); } catch(err) { toast(err.message, true); } };
+  });
+}
+
+async function deleteQuocGia(id) {
+  if (DB.TKNHTONN.some(r => String(r['QUỐC GIA']) === String(id))) return toast('Không thể xóa quốc gia đang được tài khoản ngoại tệ sử dụng.', true);
+  if (!confirm('Xóa quốc gia này?')) return;
+  try { await apiPost('delete', 'QG', {}, id); await reloadSheet('QG'); toast('Đã xóa quốc gia'); renderQuocGia(); } catch(err) { toast(err.message, true); }
+}
+
 if (window.QLNHVAuth && typeof window.QLNHVAuth.start === 'function') {
   window.QLNHVAuth.start(boot);
 } else {
