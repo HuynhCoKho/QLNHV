@@ -757,13 +757,16 @@ function renderTTHC() {
   const view = document.getElementById('view');
   view.innerHTML = `
     ${statsBarHtml(DB.TTHC, 'TrangThai')}
+    <div class="toolbar"><input type="text" class="search-input" id="tthcSearch" placeholder="Tìm mã, tên thủ tục hoặc nhóm nghiệp vụ…" /></div>
     <div class="card"><div class="table-wrap"><table>
     <thead><tr><th>Mã TTHC</th><th>Tên thủ tục</th><th>Loại</th><th>Nhóm nghiệp vụ</th><th>Trạng thái</th><th></th></tr></thead>
     <tbody id="tthcBody"></tbody></table></div></div>`;
   const draw = () => {
+    const q = (document.getElementById('tthcSearch').value || '').trim().toLowerCase();
+    const rows = DB.TTHC.filter(r => !q || [r.MaTTHC, r.TenTTHC, r.NhomNghiepVu, r.LoaiTTHC, r.TrangThai].some(v => String(v || '').toLowerCase().includes(q)));
     const body = document.getElementById('tthcBody');
-    if (!DB.TTHC.length) { body.innerHTML = `<tr><td colspan="6"><div class="empty-state"><h3>Chưa có thủ tục nào</h3></div></td></tr>`; return; }
-    body.innerHTML = DB.TTHC.map(r => `
+    if (!rows.length) { body.innerHTML = `<tr><td colspan="6"><div class="empty-state"><h3>Không tìm thấy thủ tục phù hợp</h3></div></td></tr>`; return; }
+    body.innerHTML = rows.map(r => `
       <tr data-view="${esc(r.MaTTHC)}">
         <td class="mono">${esc(r.MaTTHC)}</td>
         <td>${esc(r.TenTTHC)}</td>
@@ -777,8 +780,9 @@ function renderTTHC() {
       </tr>`).join('');
     body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openTTHCForm(DB.TTHC.find(x => x.MaTTHC === b.dataset.edit)));
     body.querySelectorAll('[data-del]').forEach(b => b.onclick = () => deleteRecord('TTHC', b.dataset.del, 'MaTTHC', renderTTHC));
-    wireRowDetail(body, DB.TTHC, 'MaTTHC', TTHC_DETAIL_FIELDS, 'TTHC');
+    wireRowDetail(body, rows, 'MaTTHC', TTHC_DETAIL_FIELDS, 'TTHC');
   };
+  document.getElementById('tthcSearch').oninput = draw;
   draw();
 }
 const TTHC_DETAIL_FIELDS = [
