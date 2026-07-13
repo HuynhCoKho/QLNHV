@@ -3,7 +3,7 @@
 // SPA don gian (khong dung framework) — goi thang API Apps Script
 // ============================================================
 
-const DB = { KhachHang: [], ChuyenVien: [], TTHC: [], TyGia: [], HoSo: [], NhomNghiepVu: [], TinhThanh: [], PhuongXa: [] };
+const DB = { KhachHang: [], ChuyenVien: [], TTHC: [], TyGia: [], HoSo: [], NhomNghiepVu: [], TinhThanh: [], PhuongXa: [], TKNHTONN: [], BCMoTKnTONN: [] };
 
 const TRANGTHAI_HOSO = ['Chưa tiếp nhận', 'Đã tiếp nhận', 'Bổ sung hồ sơ', 'Đang xử lý', 'Đã xử lý'];
 const LOAI_TTHC_OPTIONS = ['Trực tuyến toàn trình', 'Thường'];
@@ -133,6 +133,8 @@ async function loadAll() {
   DB.NhomNghiepVu = await apiGet('list', { sheet: 'NhomNghiepVu' });
   DB.TinhThanh = await apiGet('list', { sheet: 'TinhThanh' });
   DB.PhuongXa = await apiGet('list', { sheet: 'PhuongXa' });
+  DB.TKNHTONN = await apiGet('list', { sheet: 'TKNHTONN' });
+  DB.BCMoTKnTONN = await apiGet('list', { sheet: 'BCMoTKnTONN' });
   normalizeIds();
 }
 
@@ -147,6 +149,15 @@ function normalizeIds() {
   DB.NhomNghiepVu.forEach(r => { r.TenNhom = String(r.TenNhom); });
   DB.TinhThanh.forEach(r => { r.TenTinh = String(r.TenTinh); });
   DB.PhuongXa.forEach(r => { r.TenPhuongXa = String(r.TenPhuongXa); });
+  DB.TKNHTONN.forEach(r => {
+    r['MÃ TKNT'] = String(r['MÃ TKNT']);
+    r['MÃ ĐƠN VỊ'] = String(r['MÃ ĐƠN VỊ']);
+  });
+  DB.BCMoTKnTONN.forEach(r => {
+    r['MÃ TKNT'] = String(r['MÃ TKNT']);
+    r['KỲ BÁO CÁO'] = String(r['KỲ BÁO CÁO']);
+    r._id = r._id || (r['MÃ TKNT'] + '||' + r['KỲ BÁO CÁO']);
+  });
   DB.HoSo.forEach(r => {
     r.MaHoSo = String(r.MaHoSo);
     r.MaKH = String(r.MaKH);
@@ -172,7 +183,8 @@ const ROUTES = {
   tygia: { title: 'Tỷ giá', render: renderTyGia },
   nhomnghiepvu: { title: 'Nhóm nghiệp vụ', render: renderNhomNghiepVu },
   tinhthanh: { title: 'Tỉnh/Thành phố', render: renderTinhThanh },
-  phuongxa: { title: 'Phường/Xã', render: renderPhuongXa }
+  phuongxa: { title: 'Phường/Xã', render: renderPhuongXa },
+  tknton: { title: 'Tài khoản ngoại tệ ở nước ngoài', render: renderTKNT }
 };
 
 // route <-> ten sheet trong Google Sheet (dung de sap xep lai sidebar theo dung thu tu tab)
@@ -184,7 +196,8 @@ const NAV_ITEMS = [
   { route: 'tygia', sheet: 'TyGia', label: 'Tỷ giá' },
   { route: 'nhomnghiepvu', sheet: 'NhomNghiepVu', label: 'Nhóm nghiệp vụ' },
   { route: 'tinhthanh', sheet: 'TinhThanh', label: 'Tỉnh/Thành phố' },
-  { route: 'phuongxa', sheet: 'PhuongXa', label: 'Phường/Xã' }
+  { route: 'phuongxa', sheet: 'PhuongXa', label: 'Phường/Xã' },
+  { route: 'tknton', sheet: 'TKNHTONN', label: 'TK ngoại tệ ở NN' }
 ];
 
 async function buildSidebarNav() {
