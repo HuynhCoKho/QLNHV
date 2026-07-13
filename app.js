@@ -1138,4 +1138,8 @@ function openPhuongXaForm(rec) {
     };
   });
 }
-boot();
+if (window.QLNHVAuth && typeof window.QLNHVAuth.start === 'function') {
+  window.QLNHVAuth.start(boot);
+} else {
+  boot();
+}
