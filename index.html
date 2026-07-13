@@ -6,9 +6,25 @@
 <title>QLNHV — Quản lý hồ sơ thủ tục hành chính</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="style.css?v=20260713-auth" />
 </head>
-<body>
+<body class="auth-locked">
+
+<div id="authGate" class="auth-gate" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+  <form id="authForm" class="auth-card" autocomplete="off">
+    <div class="auth-mark">QL</div>
+    <p class="auth-eyebrow">Khu vực dữ liệu nội bộ</p>
+    <h1 id="authTitle">Nhập mật khẩu để tiếp tục</h1>
+    <p class="auth-copy">Trang QLNHV chỉ hiển thị dữ liệu sau khi xác thực.</p>
+    <label class="auth-label" for="authPassword">Mật khẩu</label>
+    <div class="auth-password-row">
+      <input id="authPassword" class="auth-input" name="password" type="password" inputmode="text" autocomplete="current-password" required autofocus />
+      <button id="authToggle" class="auth-toggle" type="button" aria-label="Hiện mật khẩu">Hiện</button>
+    </div>
+    <p id="authError" class="auth-error" role="alert" aria-live="polite"></p>
+    <button class="auth-submit" type="submit">Mở khóa</button>
+  </form>
+</div>
 
 <div class="app">
   <aside class="sidebar">
@@ -66,7 +82,8 @@
 <div id="modalRoot"></div>
 <div id="toastRoot" class="toast-root"></div>
 
-<script src="config.js"></script>
-<script src="app.js"></script>
+<script src="config.js?v=20260713-auth"></script>
+<script src="auth.js?v=20260713-auth"></script>
+<script src="app.js?v=20260713-auth"></script>
 </body>
 </html>
