@@ -177,9 +177,9 @@ tbody tr:hover{ background:#FBFAF6; }
 .badge-danger{ color:var(--danger); background:#FBEAE7; }
 
 /* ---------------- Form ---------------- */
-.form-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px 20px; }
+.form-grid{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px 20px; }
 .form-grid.cols-1{ grid-template-columns:1fr; }
-.field{ display:flex; flex-direction:column; gap:6px; }
+.field{ display:flex; flex-direction:column; gap:6px; min-width:0; }
 .field.span-2{ grid-column:span 2; }
 .field label{ font-size:12.5px; font-weight:600; color:var(--ink-soft); }
 .field .hint{ font-size:11.5px; color:#9A927E; }
@@ -192,6 +192,7 @@ input[type=text], input[type=number], input[type=email], input[type=tel], input[
   background:#fff;
   color:var(--ink);
   outline:none;
+  width:100%; max-width:100%; box-sizing:border-box;
 }
 input:focus, select:focus, textarea:focus{ border-color:var(--seal); box-shadow:0 0 0 3px rgba(178,58,46,.12); }
 textarea{ resize:vertical; min-height:64px; font-family:'Inter', sans-serif; }
@@ -225,7 +226,9 @@ fieldset.subsection legend{
 .modal{
   background:var(--paper-2); border-radius:14px; width:100%; max-width:720px;
   padding:28px 28px 24px; box-shadow:0 20px 60px rgba(30,42,68,.3);
+  box-sizing:border-box; max-height:calc(100vh - 48px); overflow-x:hidden; overflow-y:auto;
 }
+.modal:has(#tkntForm){max-width:900px}
 .modal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
 .modal-head h2{ font-family:'Space Grotesk', sans-serif; font-size:19px; margin:0; }
 .modal-foot{ display:flex; justify-content:flex-end; gap:10px; margin-top:22px; padding-top:18px; border-top:1px solid var(--line); }
