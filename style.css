@@ -155,7 +155,25 @@ tbody tr:hover{ background:#FBFAF6; }
 .mono{ font-family:'IBM Plex Mono', monospace; font-size:12.5px; }
 .num{ text-align:right; font-variant-numeric:tabular-nums; }
 .muted{ color:var(--ink-soft); }
-.cell-actions{ display:flex; gap:6px; white-space:nowrap; }
+.cell-actions{
+  display:table-cell;
+  white-space:nowrap;
+  position:sticky;
+  right:0;
+  z-index:3;
+  background:var(--paper-2);
+  box-shadow:-8px 0 10px -10px rgba(23,38,64,.55);
+}
+.cell-actions > * + *{ margin-left:6px; }
+.table-wrap table:has(.cell-actions) > thead > tr > th:last-child{
+  position:sticky;
+  right:0;
+  z-index:5;
+  min-width:112px;
+  background:#F7F5EF;
+  box-shadow:-8px 0 10px -10px rgba(23,38,64,.55);
+}
+.table-wrap table:has(.cell-actions) tbody tr:hover > .cell-actions{ background:#F5F2EA; }
 
 .empty-state{ padding:60px 20px; text-align:center; color:var(--ink-soft); }
 .empty-state h3{ font-family:'Space Grotesk', sans-serif; color:var(--ink); margin-bottom:6px; }
@@ -177,15 +195,15 @@ tbody tr:hover{ background:#FBFAF6; }
 .badge-danger{ color:var(--danger); background:#FBEAE7; }
 
 /* Bảng đầu tư: giữ nhãn nằm ngang và dành đủ chỗ cho nội dung dài. */
-.investment-table{ min-width:1420px; table-layout:auto; }
-.investment-table th:nth-child(1){ min-width:310px; }
-.investment-table th:nth-child(2){ min-width:115px; }
+.investment-table{ min-width:1180px; table-layout:auto; }
+.investment-table th:nth-child(1){ min-width:250px; }
+.investment-table th:nth-child(2){ min-width:100px; }
 .investment-table th:nth-child(3),
-.investment-table th:nth-child(4){ min-width:135px; }
-.investment-table th:nth-child(5){ min-width:260px; }
-.investment-table th:nth-child(6){ min-width:82px; }
-.investment-table th:nth-child(7){ min-width:225px; }
-.investment-table th:nth-child(8){ min-width:92px; }
+.investment-table th:nth-child(4){ min-width:110px; }
+.investment-table th:nth-child(5){ min-width:210px; }
+.investment-table th:nth-child(6){ min-width:70px; }
+.investment-table th:nth-child(7){ min-width:180px; }
+.investment-table th:nth-child(8){ min-width:80px; }
 .investment-table th:nth-child(9){ min-width:112px; }
 .investment-table .badge{
   transform:none;
