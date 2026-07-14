@@ -175,6 +175,9 @@ async function loadAll() {
 function normalizeIds() {
   DB.KhachHang.forEach(r => { r.MaKH = String(r.MaKH); });
   DB.ChuyenVien.forEach(r => { r.MaCV = String(r.MaCV); });
+  // SETUP cu da chen 22 dong TTHC mau khong co trang thai. Day khong phai
+  // danh muc nghiep vu that, nen loai khoi giao dien va cac combobox lien ket.
+  DB.TTHC = DB.TTHC.filter(r => String(r.TrangThai || '').trim() !== '');
   DB.TTHC.forEach(r => { r.MaTTHC = String(r.MaTTHC); });
   DB.TyGia.forEach(r => { r.MaNgoaiTe = String(r.MaNgoaiTe); });
   DB.NhomNghiepVu.forEach(r => { r.TenNhom = String(r.TenNhom); });
