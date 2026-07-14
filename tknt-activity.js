@@ -1,7 +1,6 @@
 // Báo cáo tình hình hoạt động tài khoản ngoại tệ ở nước ngoài theo kỳ, quy USD.
 function buildTKNTActivityReport(period) {
   const provinces = new Map(), missingRates = new Set();
-  const fields = ['THU','CHI','CUỐI KỲ VP','CUỐI KỲ VAY','CUỐI KỲ HĐ'];
   DB.BCMoTKnTONN.filter(r => String(r['KỲ BÁO CÁO']) === String(period)).forEach(report => {
     const account = DB.TKNHTONN.find(a => String(a['MÃ TKNT']) === String(report['MÃ TKNT']));
     if (!account) return;
@@ -16,7 +15,7 @@ function buildTKNTActivityReport(period) {
     if (!provinces.has(province)) provinces.set(province, new Map());
     const companies = provinces.get(province), id = String(customer.MaKH);
     if (!companies.has(id)) companies.set(id, {customer,thu:0,chi:0,vp:0,vay:0,hd:0,accounts:new Set()});
-    const item = companies.get(id), vals = fields.map(f => tkntAmount(report[f]) / rate);
+    const item = companies.get(id), vals = ['thu','chi','vp','vay','hd'].map(f => tkntReportAmount(report,f,account) / rate);
     item.thu += vals[0]; item.chi += vals[1]; item.vp += vals[2]; item.vay += vals[3]; item.hd += vals[4];
     item.accounts.add(String(account['MÃ TKNT']));
   });
@@ -77,6 +76,7 @@ function printTKNTActivityReport(period, groups, missingRates) {
   let no=0; const all=[];
   const rows=groups.map((g,gi)=>{const s=activitySum(g.companies);all.push(...g.companies);return `<tr class="province"><td>${tkntRoman(gi)}</td><td>${esc(String(g.province).toUpperCase())}</td>${activityCells(s)}</tr>${g.companies.map(x=>`<tr><td>${++no}</td><td>${esc(x.customer.TenKhachHang)}<br><span class="mono">${esc(x.customer.MaKH)}</span></td>${activityCells(x)}</tr>`).join('')}`;}).join('');
   const grand=activitySum(all),w=window.open('','_blank');
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Tình hình TKNT ${period}</title><style>@page{size:A4 landscape;margin:10mm}body{font:10px Arial,sans-serif;color:#111}h1{text-align:center;font-size:16px;margin:0 0 5px}h2{text-align:center;font-size:13px;margin:0 0 8px}.unit{text-align:right;font-style:italic;margin:0 0 6px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #555;padding:4px;vertical-align:top}th{background:#eee}.num{text-align:right}.mono{font-family:monospace}.province{font-weight:bold;background:#dfeee8}.subtotal{font-weight:bold;background:#f3f3f3}.grand{font-weight:bold;background:#ddd}.warning{color:#a33;margin-bottom:8px}</style></head><body><h1>BÁO CÁO TÌNH HÌNH HOẠT ĐỘNG TÀI KHOẢN NGOẠI TỆ Ở NƯỚC NGOÀI</h1><h2>${esc(tkntQuarterLabel(period).toUpperCase())}</h2><div class="unit">Đơn vị tính: USD</div>${missingRates.length?`<div class="warning">Thiếu tỷ giá: ${esc(missingRates.join(', '))}</div>`:''}<table><thead><tr><th>TT</th><th>DOANH NGHIỆP</th><th>THU</th><th>CHI</th><th>CK VP</th><th>CK VAY</th><th>CK HĐ</th><th>TỔNG SỐ DƯ</th></tr></thead><tbody>${rows}<tr class="grand"><td colspan="2">TỔNG CỘNG</td>${activityCells(grand)}</tr></tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`);
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Tình hình TKNT ${period}</title><style>@page{size:A4 landscape;margin:10mm}body{font:10px Arial,sans-serif;color:#111}h1{text-align:center;font-size:16px;margin:0 0 5px}h2{text-align:center;font-size:13px;margin:0 0 8px}.unit{text-align:right;font-style:italic;margin:0 0 6px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #555;padding:4px;vertical-align:top}th{background:#eee;text-align:center}.num{text-align:right}.mono{font-family:monospace}.province{font-weight:bold;background:#dfeee8}.subtotal{font-weight:bold;background:#f3f3f3}.grand{font-weight:bold;background:#ddd}.warning{color:#a33;margin-bottom:8px}</style></head><body><h1>BÁO CÁO TÌNH HÌNH HOẠT ĐỘNG TÀI KHOẢN NGOẠI TỆ Ở NƯỚC NGOÀI</h1><h2>${esc(tkntQuarterLabel(period).toUpperCase())}</h2><div class="unit">Đơn vị tính: USD</div>${missingRates.length?`<div class="warning">Thiếu tỷ giá: ${esc(missingRates.join(', '))}</div>`:''}<table><thead><tr><th>TT</th><th>DOANH NGHIỆP</th><th>THU</th><th>CHI</th><th>CK VP</th><th>CK VAY</th><th>CK HĐ</th><th>TỔNG SỐ DƯ</th></tr></thead><tbody>${rows}<tr class="grand"><td colspan="2">TỔNG CỘNG</td>${activityCells(grand)}</tr></tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`);
   w.document.close();
 }
+
