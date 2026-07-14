@@ -20,6 +20,29 @@ function isLendingProcedure(maTTHC) {
   return !!t && isSpecialGroup(t.NhomNghiepVu);
 }
 
+async function syncLendingFromCase(h) {
+  const maKV = String(h && h.MaKhoanChoVay || '').trim();
+  if (!maKV) return;
+  const existing = DB.ChoVay.find(r => String(r['MÃ SỐ KHOẢN CHO VAY'] || '').trim() === maKV);
+  const amount = parseNum(h.SoTienChoVayNguyenTe);
+  const data = existing ? { ...existing } : {
+    'MÃ SỐ KHOẢN CHO VAY': maKV, 'MÃ KH': '', 'SỐ VBXN': '', 'NGÀY VBXN': '',
+    'KIM NGẠCH VAY': 0, 'NGUYÊN TỆ': '', 'FILE': '', 'DƯ NỢ': 0,
+    'HẾT NỢ': false, 'CP BẢO LÃNH': false
+  };
+  if (h.MaKH) data['MÃ KH'] = h.MaKH;
+  if (h.SoVanBan) data['SỐ VBXN'] = h.SoVanBan;
+  if (h.NgayVanBan) data['NGÀY VBXN'] = h.NgayVanBan;
+  if (h.SoTienChoVayNguyenTe !== '' && h.SoTienChoVayNguyenTe != null) {
+    data['KIM NGẠCH VAY'] = amount;
+    if (!existing) data['DƯ NỢ'] = amount;
+  }
+  if (h.NguyenTeChoVay) data['NGUYÊN TỆ'] = h.NguyenTeChoVay;
+  if (h.FileVanBan) data.FILE = h.FileVanBan;
+  await apiPost(existing ? 'update' : 'create', 'ChoVay', data, existing ? maKV : undefined);
+  if (existing) Object.assign(existing, data); else DB.ChoVay.push(data);
+}
+
 // Dữ liệu lịch sử cũ có thể chưa điền MÃ KH trong ChoVay. Khi đó lấy
 // khách hàng từ hồ sơ TTHC cùng mã khoản cho vay để vẫn nhóm đúng doanh nghiệp.
 function lendingCustomerId(lending) {

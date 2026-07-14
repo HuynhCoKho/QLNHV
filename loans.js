@@ -20,6 +20,45 @@ function isLoanProcedure(maTTHC) {
   return !!t && isSpecialGroup(t.NhomNghiepVu);
 }
 
+// Khi hồ sơ TTHC đã được cấp mã khoản vay, tự tạo/cập nhật bản ghi chính
+// trong Khoanvay. Hồ sơ vẫn được giữ riêng để hiển thị đầy đủ lịch sử xác
+// nhận đăng ký và đăng ký thay đổi.
+async function syncLoanFromCase(h) {
+  const maKV = String(h && h.MaKhoanVay || '').trim();
+  if (!maKV) return;
+
+  const existing = DB.Khoanvay.find(r => String(r['MÃ SỐ KV'] || '').trim() === maKV);
+  const amount = parseNum(h.SoTienVayNguyenTe);
+  const data = existing ? { ...existing } : {
+    'MÃ SỐ KV': maKV,
+    'MÃ KH': '',
+    'SỐ VBXN': '',
+    'NGÀY VBXN': '',
+    'KIM NGẠCH VAY': 0,
+    'ĐỒNG TIỀN': '',
+    'FILE': '',
+    'DƯ NỢ': 0,
+    'HẾT NỢ': false,
+    'CP BẢO LÃNH': false
+  };
+
+  if (h.MaKH) data['MÃ KH'] = h.MaKH;
+  if (h.SoVanBan) data['SỐ VBXN'] = h.SoVanBan;
+  if (h.NgayVanBan) data['NGÀY VBXN'] = h.NgayVanBan;
+  if (h.SoTienVayNguyenTe !== '' && h.SoTienVayNguyenTe != null) {
+    data['KIM NGẠCH VAY'] = amount;
+    if (!existing) data['DƯ NỢ'] = amount;
+  }
+  if (h.NguyenTeVay) data['ĐỒNG TIỀN'] = h.NguyenTeVay;
+  if (h.FileVanBan) data.FILE = h.FileVanBan;
+  data['HẾT NỢ'] = h.HetNo === true || String(h.HetNo).toLowerCase() === 'true';
+  if (data['HẾT NỢ']) data['DƯ NỢ'] = 0;
+
+  await apiPost(existing ? 'update' : 'create', 'Khoanvay', data, existing ? maKV : undefined);
+  if (existing) Object.assign(existing, data);
+  else DB.Khoanvay.push(data);
+}
+
 // Dữ liệu lịch sử cũ có thể chưa điền MÃ KH trong Khoanvay. Khi đó lấy
 // khách hàng từ hồ sơ TTHC cùng mã khoản vay để vẫn nhóm đúng doanh nghiệp.
 function loanCustomerId(loan) {

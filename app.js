@@ -670,6 +670,8 @@ function openHoSoForm(rec) {
         }
         // Khong tai lai toan bo hon 15.000 ho so sau moi lan luu.
         // Du lieu vua luu da co san trong form va duoc cap nhat truc tiep vao bo nho.
+        await syncLoanFromCase(data);
+        await syncLendingFromCase(data);
         await syncInvestmentFromCase(data);
         toast('Đã lưu hồ sơ ' + data.MaHoSo);
         closeModal();
