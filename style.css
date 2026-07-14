@@ -230,6 +230,14 @@ tbody tr:hover{ background:#FBFAF6; }
 .vphc-table th:nth-child(8){ min-width:160px; }
 .vphc-table .badge{ transform:none; white-space:nowrap; width:max-content; min-width:max-content; }
 .vphc-detail{ line-height:1.55; }
+.vphc-report-preview{ max-height:58vh; overflow:auto; }
+.vphc-report-preview thead th{ position:sticky; top:0; z-index:2; }
+.vphc-report-preview th:nth-child(1){ width:55px; }
+.vphc-report-preview th:nth-child(2){ min-width:320px; }
+.vphc-report-preview th:nth-child(3),.vphc-report-preview th:nth-child(5){ min-width:120px; }
+.vphc-report-preview th:nth-child(4){ min-width:150px; }
+.vphc-report-preview th:nth-child(6){ min-width:130px; }
+.report-total-row{ font-weight:700; background:#F2EFE6; }
 
 /* ---------------- Form ---------------- */
 .form-grid{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px 20px; }
