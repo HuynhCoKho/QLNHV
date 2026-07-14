@@ -3,7 +3,7 @@
 // SPA don gian (khong dung framework) — goi thang API Apps Script
 // ============================================================
 
-const DB = { KhachHang: [], LoaiHinhKhachHang: [], ChuyenVien: [], TTHC: [], TyGia: [], HoSo: [], Khoanvay: [], ChoVay: [], DTRNNN: [], DTRNNN_NDT: [], Campuchia: [], NhomNghiepVu: [], TinhThanh: [], PhuongXa: [], QG: [], TKNHTONN: [], BCMoTKnTONN: [] };
+const DB = { KhachHang: [], LoaiHinhKhachHang: [], ChuyenVien: [], TTHC: [], TyGia: [], HoSo: [], Khoanvay: [], ChoVay: [], DTRNNN: [], DTRNNN_NDT: [], Campuchia: [], VPHC: [], NhomNghiepVu: [], TinhThanh: [], PhuongXa: [], QG: [], TKNHTONN: [], BCMoTKnTONN: [] };
 
 const TRANGTHAI_HOSO = ['Chưa tiếp nhận', 'Đã tiếp nhận', 'Bổ sung hồ sơ', 'Đang xử lý', 'Đã xử lý'];
 const LOAI_TTHC_OPTIONS = ['Trực tuyến toàn trình', 'Thường'];
@@ -159,6 +159,7 @@ async function loadAll() {
   DB.DTRNNN = await apiGet('list', { sheet: 'DTRNNN' });
   DB.DTRNNN_NDT = await apiGet('list', { sheet: 'DTRNNN_NDT' });
   DB.Campuchia = await apiGet('list', { sheet: 'Campuchia' });
+  try { DB.VPHC = await apiGet('list', { sheet: 'VPHC' }); } catch (e) { DB.VPHC = []; }
   DB.NhomNghiepVu = await apiGet('list', { sheet: 'NhomNghiepVu' });
   DB.TinhThanh = await apiGet('list', { sheet: 'TinhThanh' });
   DB.PhuongXa = await apiGet('list', { sheet: 'PhuongXa' });
@@ -223,6 +224,12 @@ function normalizeIds() {
     r['MÃ KH'] = String(r['MÃ KH'] || '');
   });
   DB.Campuchia.forEach(r => { r.BCID=String(r.BCID||''); r['KỲ BC']=String(r['KỲ BC']||''); r['MÃ KH']=String(r['MÃ KH']||''); });
+  DB.VPHC.forEach(r => {
+    r['MÃ HỒ SƠ VI PHẠM']=String(r['MÃ HỒ SƠ VI PHẠM']||'');
+    r['MÃ KH']=String(r['MÃ KH']||''); r['MÃ HỒ SƠ']=String(r['MÃ HỒ SƠ']||'');
+    r['MÃ CHUYÊN VIÊN']=String(r['MÃ CHUYÊN VIÊN']||'');
+    ['NGÀY NHẬN HS','NGÀY VB CHUYỂN TTRA','NGÀY QUYẾT ĐỊNH','NGÀY ĐÃ NỘP PHẠT'].forEach(k=>r[k]=fmtDateVN(r[k]));
+  });
   DB.TyGia.forEach(r => { r.NgayCapNhat = fmtDateVN(r.NgayCapNhat); });
 }
 
@@ -248,7 +255,8 @@ const ROUTES = {
   khoanvay: { title: 'Lịch sử khoản vay nước ngoài', render: renderKhoanVay },
   chovay: { title: 'Cho vay ra nước ngoài', render: renderChoVay },
   dtrnnn: { title: 'Đầu tư ra nước ngoài', render: renderDTRNNN },
-  campuchia: { title: 'Thanh toán với Campuchia', render: renderCampuchia }
+  campuchia: { title: 'Thanh toán với Campuchia', render: renderCampuchia },
+  vphc: { title: 'Xử lý vi phạm hành chính', render: renderVPHC }
 };
 
 // route <-> ten sheet trong Google Sheet (dung de sap xep lai sidebar theo dung thu tu tab)
@@ -267,7 +275,8 @@ const NAV_ITEMS = [
   { route: 'khoanvay', sheet: 'Khoanvay', label: 'Khoản vay nước ngoài' },
   { route: 'chovay', sheet: 'ChoVay', label: 'Cho vay ra nước ngoài' },
   { route: 'dtrnnn', sheet: 'DTRNNN', label: 'Đầu tư ra nước ngoài' },
-  { route: 'campuchia', sheet: 'Campuchia', label: 'Thanh toán Campuchia' }
+  { route: 'campuchia', sheet: 'Campuchia', label: 'Thanh toán Campuchia' },
+  { route: 'vphc', sheet: 'VPHC', label: 'Xử lý VPHC' }
 ];
 
 async function buildSidebarNav() {

@@ -216,6 +216,15 @@ tbody tr:hover{ background:#FBFAF6; }
   min-width:max-content;
   justify-content:center;
 }
+.vphc-table{ min-width:1420px; }
+.vphc-table th:nth-child(1){ min-width:145px; }
+.vphc-table th:nth-child(2){ min-width:240px; }
+.vphc-table th:nth-child(3){ min-width:190px; }
+.vphc-table th:nth-child(4){ min-width:165px; }
+.vphc-table th:nth-child(5),.vphc-table th:nth-child(7){ min-width:125px; }
+.vphc-table th:nth-child(8){ min-width:160px; }
+.vphc-table .badge{ transform:none; white-space:nowrap; width:max-content; min-width:max-content; }
+.vphc-detail{ line-height:1.55; }
 
 /* ---------------- Form ---------------- */
 .form-grid{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px 20px; }
