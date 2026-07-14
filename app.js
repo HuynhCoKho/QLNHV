@@ -833,12 +833,26 @@ function openKHForm(rec) {
 // ============================================================
 // MODULE: TTHC
 // ============================================================
+function tthcStatsBarHtml() {
+  const active = DB.TTHC.filter(r => sameText(r.TrangThai, 'Đang hiệu lực'));
+  const online = active.filter(r => sameText(r.LoaiTTHC, 'Trực tuyến toàn trình')).length;
+  const normal = active.filter(r => sameText(r.LoaiTTHC, 'Thường')).length;
+  const cancelled = DB.TTHC.filter(r => sameText(r.TrangThai, 'Hủy')).length;
+  return `<div class="stats-bar">
+    <div class="stat-chip stat-total">Tổng số: <b>${DB.TTHC.length}</b></div>
+    <div class="stat-chip">Đang hiệu lực: <b>${active.length}</b></div>
+    <div class="stat-chip">Trực tuyến toàn trình: <b>${online}</b></div>
+    <div class="stat-chip">Thường: <b>${normal}</b></div>
+    <div class="stat-chip">Hủy: <b>${cancelled}</b></div>
+  </div>`;
+}
+
 function renderTTHC() {
   document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" id="btnNewTTHC">+ Thủ tục mới</button>`;
   document.getElementById('btnNewTTHC').onclick = () => openTTHCForm();
   const view = document.getElementById('view');
   view.innerHTML = `
-    ${statsBarHtml(DB.TTHC, 'TrangThai')}
+    ${tthcStatsBarHtml()}
     <div class="toolbar"><input type="text" class="search-input" id="tthcSearch" placeholder="Tìm mã, tên thủ tục hoặc nhóm nghiệp vụ…" /></div>
     <div class="card"><div class="table-wrap"><table>
     <thead><tr><th>Mã TTHC</th><th>Tên thủ tục</th><th>Loại</th><th>Nhóm nghiệp vụ</th><th>Trạng thái</th><th></th></tr></thead>
