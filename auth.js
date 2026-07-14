@@ -2,6 +2,12 @@
   const PASSWORD_HASH = '192ac13b114660e9a02b15f0f548d85fc88169a57f21c8860dad7ff549b8501b';
   const SESSION_KEY = 'qlnhv-auth-ok';
 
+  async function clearLegacyCaches() {
+    if (!('caches' in window)) return;
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(key => key.startsWith('qlnhv-')).map(key => caches.delete(key)));
+  }
+
   async function sha256Hex(value) {
     const data = new TextEncoder().encode(value);
     const digest = await crypto.subtle.digest('SHA-256', data);
@@ -17,6 +23,7 @@
 
   window.QLNHVAuth = {
     start(boot) {
+      clearLegacyCaches().catch(() => {});
       if (sessionStorage.getItem(SESSION_KEY) === '1') {
         unlock(boot);
         return;
