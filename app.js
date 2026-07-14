@@ -3,7 +3,7 @@
 // SPA don gian (khong dung framework) — goi thang API Apps Script
 // ============================================================
 
-const DB = { KhachHang: [], ChuyenVien: [], TTHC: [], TyGia: [], HoSo: [], Khoanvay: [], ChoVay: [], Campuchia: [], NhomNghiepVu: [], TinhThanh: [], PhuongXa: [], QG: [], TKNHTONN: [], BCMoTKnTONN: [] };
+const DB = { KhachHang: [], LoaiHinhKhachHang: [], ChuyenVien: [], TTHC: [], TyGia: [], HoSo: [], Khoanvay: [], ChoVay: [], Campuchia: [], NhomNghiepVu: [], TinhThanh: [], PhuongXa: [], QG: [], TKNHTONN: [], BCMoTKnTONN: [] };
 
 const TRANGTHAI_HOSO = ['Chưa tiếp nhận', 'Đã tiếp nhận', 'Bổ sung hồ sơ', 'Đang xử lý', 'Đã xử lý'];
 const LOAI_TTHC_OPTIONS = ['Trực tuyến toàn trình', 'Thường'];
@@ -130,6 +130,7 @@ async function loadAll() {
   // Goi lan luot tung sheet (khong dung Promise.all) vi Apps Script Web App
   // xu ly nhieu request dong thoi khong on dinh, de gay loi ngau nhien.
   DB.KhachHang = await apiGet('list', { sheet: 'KhachHang' });
+  DB.LoaiHinhKhachHang = await apiGet('list', { sheet: 'LoaiHinhKhachHang' });
   DB.ChuyenVien = await apiGet('list', { sheet: 'ChuyenVien' });
   DB.TTHC = await apiGet('list', { sheet: 'TTHC' });
   DB.TyGia = await apiGet('list', { sheet: 'TyGia' });
@@ -204,6 +205,7 @@ async function reloadSheet(sheet) {
 const ROUTES = {
   hoso: { title: 'Hồ sơ TTHC', render: renderHoSo },
   khachhang: { title: 'Khách hàng', render: renderKhachHang },
+  loaihinhkhachhang: { title: 'Loại hình khách hàng', render: renderLoaiHinhKhachHang },
   tthc: { title: 'Danh mục thủ tục hành chính', render: renderTTHC },
   chuyenvien: { title: 'Chuyên viên', render: renderChuyenVien },
   tygia: { title: 'Tỷ giá', render: renderTyGia },
@@ -221,6 +223,7 @@ const ROUTES = {
 const NAV_ITEMS = [
   { route: 'hoso', sheet: 'HoSo', label: 'Hồ sơ TTHC' },
   { route: 'khachhang', sheet: 'KhachHang', label: 'Khách hàng' },
+  { route: 'loaihinhkhachhang', sheet: 'LoaiHinhKhachHang', label: 'Loại hình khách hàng' },
   { route: 'tthc', sheet: 'TTHC', label: 'Danh mục TTHC' },
   { route: 'chuyenvien', sheet: 'ChuyenVien', label: 'Chuyên viên' },
   { route: 'tygia', sheet: 'TyGia', label: 'Tỷ giá' },
@@ -728,6 +731,7 @@ const KHACHHANG_DETAIL_FIELDS = [
 function openKHForm(rec) {
   const isEdit = !!rec;
   rec = rec || { Loai: 'CaNhan', LoaiCaNhan: 'VietNam' };
+  const loaiToChucOptions = DB.LoaiHinhKhachHang.slice().sort((a,b)=>String(a.MaLoai).localeCompare(String(b.MaLoai),'vi')).map(x=>`<option value="${esc(x.MaLoai)}" ${rec.LoaiToChuc===x.MaLoai?'selected':''}>${esc(x.MaLoai)} — ${esc(x.TenLoai)}</option>`).join('');
   const bodyHtml = `
     <form id="khForm">
       <div class="form-grid">
@@ -738,10 +742,7 @@ function openKHForm(rec) {
           <select name="Loai" id="fLoai"><option value="CaNhan" ${rec.Loai === 'CaNhan' ? 'selected' : ''}>Cá nhân</option><option value="ToChuc" ${rec.Loai === 'ToChuc' ? 'selected' : ''}>Tổ chức</option></select></div>
         <div class="field" id="fLoaiToChucWrap"><label>Loại hình tổ chức</label>
           <select name="LoaiToChuc">
-            <option value="F0" ${rec.LoaiToChuc === 'F0' ? 'selected' : ''}>F0 — 100% vốn trong nước</option>
-            <option value="F10" ${rec.LoaiToChuc === 'F10' ? 'selected' : ''}>F10 — vốn ĐTNN ≤ 50%</option>
-            <option value="F51" ${rec.LoaiToChuc === 'F51' ? 'selected' : ''}>F51 — vốn ĐTNN ≥ 51%</option>
-            <option value="F100" ${rec.LoaiToChuc === 'F100' ? 'selected' : ''}>F100 — 100% vốn ĐTNN</option>
+            <option value="">— Chọn loại hình —</option>${loaiToChucOptions}
           </select></div>
         <div class="field" id="fLoaiCaNhanWrap"><label>Quốc tịch</label>
           <select name="LoaiCaNhan"><option value="VietNam" ${rec.LoaiCaNhan === 'VietNam' ? 'selected' : ''}>Người Việt Nam</option><option value="NuocNgoai" ${rec.LoaiCaNhan === 'NuocNgoai' ? 'selected' : ''}>Người nước ngoài</option></select></div>
