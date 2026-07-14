@@ -1,5 +1,27 @@
-const CACHE='qlnhv-v19';
-const ASSETS=['./','./index.html','./style.css','./app.js','./tknt-activity.js','./tknt.js','./report-layout.js','./manifest.webmanifest'];
-self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS))));
-self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))));
-self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request))));
+const CACHE = 'qlnhv-cache-reset-20260714';
+
+self.addEventListener('install', event => {
+  self.skipWaiting();
+  event.waitUntil(caches.open(CACHE));
+});
+
+self.addEventListener('activate', event => {
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(key => key.startsWith('qlnhv-') && key !== CACHE).map(key => caches.delete(key)));
+    await self.clients.claim();
+  })());
+});
+
+self.addEventListener('fetch', event => {
+  const request = event.request;
+  if (request.method !== 'GET') return;
+
+  const isNavigation = request.mode === 'navigate' || (request.headers.get('accept') || '').includes('text/html');
+  if (isNavigation) {
+    event.respondWith(fetch(request, { cache: 'no-store' }).catch(() => caches.match('./index.html')));
+    return;
+  }
+
+  event.respondWith(fetch(request).catch(() => caches.match(request)));
+});
