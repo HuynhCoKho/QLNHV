@@ -228,7 +228,11 @@ function normalizeIds() {
   });
   DB.Campuchia.forEach(r => { r.BCID=String(r.BCID||''); r['KỲ BC']=String(r['KỲ BC']||''); r['MÃ KH']=String(r['MÃ KH']||''); });
   DB.VPHC.forEach(r => {
-    r['MÃ HỒ SƠ VI PHẠM']=String(r['MÃ HỒ SƠ VI PHẠM']||'');
+    const rawId=String(r['MÃ HỒ SƠ VI PHẠM']||'');
+    if (/^\d{4}-\d{2}-\d{2}T/.test(rawId)) {
+      const d=new Date(new Date(rawId).getTime()+7*60*60*1000);
+      r['MÃ HỒ SƠ VI PHẠM']=`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}`;
+    } else r['MÃ HỒ SƠ VI PHẠM']=rawId;
     r['MÃ KH']=String(r['MÃ KH']||''); r['MÃ HỒ SƠ']=String(r['MÃ HỒ SƠ']||'');
     r['MÃ CHUYÊN VIÊN']=String(r['MÃ CHUYÊN VIÊN']||'');
     ['NGÀY NHẬN HS','NGÀY VB CHUYỂN TTRA','NGÀY QUYẾT ĐỊNH','NGÀY ĐÃ NỘP PHẠT'].forEach(k=>r[k]=fmtDateVN(r[k]));
