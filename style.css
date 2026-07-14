@@ -176,6 +176,25 @@ tbody tr:hover{ background:#FBFAF6; }
 .badge-seal{ color:var(--seal); background:#E4F2EA; }
 .badge-danger{ color:var(--danger); background:#FBEAE7; }
 
+/* Bảng đầu tư: giữ nhãn nằm ngang và dành đủ chỗ cho nội dung dài. */
+.investment-table{ min-width:1420px; table-layout:auto; }
+.investment-table th:nth-child(1){ min-width:310px; }
+.investment-table th:nth-child(2){ min-width:115px; }
+.investment-table th:nth-child(3),
+.investment-table th:nth-child(4){ min-width:135px; }
+.investment-table th:nth-child(5){ min-width:260px; }
+.investment-table th:nth-child(6){ min-width:82px; }
+.investment-table th:nth-child(7){ min-width:225px; }
+.investment-table th:nth-child(8){ min-width:92px; }
+.investment-table th:nth-child(9){ min-width:112px; }
+.investment-table .badge{
+  transform:none;
+  white-space:nowrap;
+  width:max-content;
+  min-width:max-content;
+  justify-content:center;
+}
+
 /* ---------------- Form ---------------- */
 .form-grid{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px 20px; }
 .form-grid.cols-1{ grid-template-columns:1fr; }

@@ -7,6 +7,7 @@ const INVESTMENT_STATUS = ['ĐANG HOẠT ĐỘNG','CHƯA ĐƯỢC XNĐK','NGỪN
 const INVESTMENT_FIELDS = ['RECORD ID','MÃ DỰ ÁN','TÊN DỰ ÁN','TỔNG VỐN ĐẦU TƯ (USD)','VỐN CHUYỂN RA (USD)','MÃ NH PHỤC VỤ','TÊN NH PHỤC VỤ CŨ','QUỐC GIA','DA DẦU KHÍ','TRẠNG THÁI','GHI CHÚ'];
 
 function investmentBool(v){return v===true||v===1||v==='1'||String(v||'').toLowerCase()==='true'}
+function investmentStatus(p){return String(p&&p['TRẠNG THÁI']||'').trim()||'ĐANG HOẠT ĐỘNG'}
 function investmentRelations(id){return DB.DTRNNN_NDT.filter(x=>x['RECORD ID']===id)}
 function investmentCustomerIds(p){return [...new Set(investmentRelations(p['RECORD ID']).map(x=>x['MÃ KH']).filter(Boolean))]}
 function isInvestmentProcedure(maTTHC){const t=tthcRow(maTTHC);return !!t&&String(t.NhomNghiepVu||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes('dau tu ra nuoc ngoai')}
@@ -15,10 +16,11 @@ function investmentBankName(p){return khName(String(p['MÃ NH PHỤC VỤ']||'')
 function newInvestmentId(){return 'DA-'+Date.now().toString(36).toUpperCase()+'-'+Math.random().toString(36).slice(2,6).toUpperCase()}
 
 function renderDTRNNN(){
+  DB.DTRNNN.forEach(p=>{if(!String(p['TRẠNG THÁI']||'').trim())p['TRẠNG THÁI']='ĐANG HOẠT ĐỘNG'});
   document.getElementById('topbarActions').innerHTML='<button class="btn btn-primary" id="newInvestment">+ Dự án mới</button>';
   document.getElementById('newInvestment').onclick=()=>openInvestmentForm();
   const countries=[...new Set(DB.DTRNNN.map(x=>x.QUỐC_GIA||x['QUỐC GIA']).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'vi'));
-  const active=DB.DTRNNN.filter(x=>x['TRẠNG THÁI']==='ĐANG HOẠT ĐỘNG').length;
+  const active=DB.DTRNNN.filter(x=>investmentStatus(x)==='ĐANG HOẠT ĐỘNG').length;
   const investorIds=new Set(DB.DTRNNN_NDT.map(x=>x['MÃ KH']).filter(Boolean));
   document.getElementById('view').innerHTML=`<div class="stats-bar">
     <div class="stat-chip stat-total">Tổng dự án: <b>${DB.DTRNNN.length}</b></div><div class="stat-chip">Nhà đầu tư: <b>${investorIds.size}</b></div>
@@ -28,10 +30,10 @@ function renderDTRNNN(){
     <select class="select-filter" id="investmentStatus"><option value="">— Tất cả trạng thái —</option>${INVESTMENT_STATUS.map(x=>`<option>${esc(x)}</option>`).join('')}</select>
     <select class="select-filter" id="investmentCountry"><option value="">— Tất cả quốc gia —</option>${countries.map(x=>`<option>${esc(x)}</option>`).join('')}</select>
     <select class="select-filter" id="investmentOil"><option value="">— Tất cả loại dự án —</option><option value="yes">Dự án dầu khí</option><option value="no">Dự án khác</option></select></div>
-    <div class="card"><div class="table-wrap"><table><thead><tr><th>Mã/Tên dự án</th><th>Quốc gia</th><th>Tổng vốn (USD)</th><th>Đã chuyển (USD)</th><th>Ngân hàng phục vụ</th><th>Dầu khí</th><th>Trạng thái</th><th>Hồ sơ</th><th></th></tr></thead><tbody id="investmentBody"></tbody></table></div></div>`;
+    <div class="card"><div class="table-wrap"><table class="investment-table"><thead><tr><th>Mã/Tên dự án</th><th>Quốc gia</th><th>Tổng vốn (USD)</th><th>Đã chuyển (USD)</th><th>Ngân hàng phục vụ</th><th>Dầu khí</th><th>Trạng thái</th><th>Hồ sơ</th><th></th></tr></thead><tbody id="investmentBody"></tbody></table></div></div>`;
   const draw=()=>{
     const q=(document.getElementById('investmentSearch').value||'').trim().toLowerCase(),status=document.getElementById('investmentStatus').value,country=document.getElementById('investmentCountry').value,oil=document.getElementById('investmentOil').value;
-    const projects=DB.DTRNNN.filter(p=>{const ids=investmentCustomerIds(p),text=[p['MÃ DỰ ÁN'],p['TÊN DỰ ÁN'],investmentBankName(p),p['QUỐC GIA'],...ids,...ids.map(khName)].join(' ').toLowerCase();return(!q||text.includes(q))&&(!status||p['TRẠNG THÁI']===status)&&(!country||p['QUỐC GIA']===country)&&(!oil||(oil==='yes')===investmentBool(p['DA DẦU KHÍ']))});
+    const projects=DB.DTRNNN.filter(p=>{const ids=investmentCustomerIds(p),text=[p['MÃ DỰ ÁN'],p['TÊN DỰ ÁN'],investmentBankName(p),p['QUỐC GIA'],...ids,...ids.map(khName)].join(' ').toLowerCase();return(!q||text.includes(q))&&(!status||investmentStatus(p)===status)&&(!country||p['QUỐC GIA']===country)&&(!oil||(oil==='yes')===investmentBool(p['DA DẦU KHÍ']))});
     const groups=new Map();projects.forEach(p=>{const ids=investmentCustomerIds(p);(ids.length?ids:['']).forEach(id=>{if(!groups.has(id))groups.set(id,[]);groups.get(id).push(p)})});
     const sorted=[...groups.entries()].sort((a,b)=>{const an=khName(a[0]),bn=khName(b[0]);if(!!an!==!!bn)return an?-1:1;return(an||a[0]||'').localeCompare(bn||b[0]||'','vi',{sensitivity:'base'})});
     const body=document.getElementById('investmentBody');body.innerHTML=sorted.length?sorted.map(([ma,items])=>`<tr class="group-row"><td colspan="9"><b>${esc(khName(ma)||'Chưa xác định nhà đầu tư')}</b><span class="group-meta mono">Mã KH: ${esc(ma||'—')} · ${items.length} dự án</span></td></tr>${items.sort((a,b)=>String(a['TÊN DỰ ÁN']).localeCompare(String(b['TÊN DỰ ÁN']),'vi')).map(p=>`<tr class="clickable-row" data-investment="${esc(p['RECORD ID'])}"><td><b>${esc(p['MÃ DỰ ÁN'])}</b><div class="muted">${esc(p['TÊN DỰ ÁN'])}</div></td><td>${esc(p['QUỐC GIA'])}</td><td class="num">${esc(fmtNum(p['TỔNG VỐN ĐẦU TƯ (USD)']))}</td><td class="num"><b>${esc(fmtNum(p['VỐN CHUYỂN RA (USD)']))}</b></td><td>${esc(investmentBankName(p)||'—')}</td><td>${investmentBool(p['DA DẦU KHÍ'])?'<span class="badge badge-on">Có</span>':'<span class="badge badge-off">Không</span>'}</td><td><span class="badge ${p['TRẠNG THÁI']==='ĐANG HOẠT ĐỘNG'?'badge-on':'badge-off'}">${esc(p['TRẠNG THÁI'])}</span></td><td><span class="badge badge-on">${investmentHistory(p['MÃ DỰ ÁN']).length} hồ sơ</span></td><td class="cell-actions"><button class="btn btn-outline btn-sm" data-edit="${esc(p['RECORD ID'])}">Sửa</button><button class="btn btn-danger btn-sm" data-del="${esc(p['RECORD ID'])}">Xóa</button></td></tr>`).join('')}`).join(''):'<tr><td colspan="9"><div class="empty-state"><h3>Không có dự án phù hợp</h3></div></td></tr>';
@@ -49,3 +51,16 @@ function openInvestmentForm(record){const edit=!!record;record=record||{'TRẠNG
 async function deleteInvestment(id){const p=DB.DTRNNN.find(x=>x['RECORD ID']===id);if(!p||!confirm('Xóa dự án '+p['MÃ DỰ ÁN']+'?'))return;try{for(const r of investmentRelations(id))await apiPost('delete','DTRNNN_NDT',{},r['INVESTOR ID']);await apiPost('delete','DTRNNN',{},id);await reloadSheet('DTRNNN');await reloadSheet('DTRNNN_NDT');toast('Đã xóa dự án');renderDTRNNN()}catch(e){toast(e.message,true)}}
 
 async function syncInvestmentFromCase(h){if(!h||!h.MaDuAn||!isInvestmentProcedure(h.MaTTHC))return;let p=DB.DTRNNN.find(x=>String(x['MÃ DỰ ÁN']).trim()===String(h.MaDuAn).trim()),created=false;if(!p){p={'RECORD ID':newInvestmentId(),'MÃ DỰ ÁN':String(h.MaDuAn).trim(),'TÊN DỰ ÁN':'Dự án '+String(h.MaDuAn).trim(),'TỔNG VỐN ĐẦU TƯ (USD)':'','VỐN CHUYỂN RA (USD)':parseNum(h.SoTienDangKyNguyenTe),'MÃ NH PHỤC VỤ':'','TÊN NH PHỤC VỤ CŨ':'','QUỐC GIA':'','DA DẦU KHÍ':false,'TRẠNG THÁI':'CHƯA ĐƯỢC XNĐK','GHI CHÚ':'Tự động đồng bộ từ hồ sơ '+h.MaHoSo};await apiPost('create','DTRNNN',p);created=true}else if(h.SoTienDangKyNguyenTe!==''){p={...p,'VỐN CHUYỂN RA (USD)':parseNum(h.SoTienDangKyNguyenTe)};await apiPost('update','DTRNNN',p,p['RECORD ID'])}const relId=p['RECORD ID']+'||'+h.MaKH;if(h.MaKH&&!DB.DTRNNN_NDT.some(x=>x['INVESTOR ID']===relId))await apiPost('create','DTRNNN_NDT',{'INVESTOR ID':relId,'RECORD ID':p['RECORD ID'],'MÃ KH':h.MaKH});if(created||h.MaKH){await reloadSheet('DTRNNN');await reloadSheet('DTRNNN_NDT')}}
+
+function prepareInvestmentAmountInputs(root=document){
+  root.querySelectorAll?.('#investmentForm input[name="TỔNG VỐN ĐẦU TƯ (USD)"],#investmentForm input[name="VỐN CHUYỂN RA (USD)"]').forEach(input=>{
+    if(input.dataset.grouped==='1')return;
+    input.dataset.grouped='1'; input.type='text'; input.inputMode='numeric';
+    input.value=input.value===''?'':fmtNum(parseNum(input.value));
+    input.addEventListener('input',()=>{const digits=input.value.replace(/\D/g,'');input.value=digits?Number(digits).toLocaleString('vi-VN'):''});
+  });
+}
+
+new MutationObserver(mutations=>mutations.forEach(m=>m.addedNodes.forEach(node=>{
+  if(node.nodeType===1)prepareInvestmentAmountInputs(node);
+}))).observe(document.body,{childList:true,subtree:true});
