@@ -15,7 +15,7 @@ function buildTKNTActivityReport(period) {
     if (!provinces.has(province)) provinces.set(province, new Map());
     const companies = provinces.get(province), id = String(customer.MaKH);
     if (!companies.has(id)) companies.set(id, {customer,thu:0,chi:0,vp:0,vay:0,hd:0,accounts:new Set()});
-    const item = companies.get(id), vals = ['thu','chi','vp','vay','hd'].map(f => tkntReportAmount(report,f,account) / rate);
+    const item = companies.get(id), vals = ['thu','chi','vp','vay','hd'].map(f => tkntReportAmount(report,f) / rate);
     item.thu += vals[0]; item.chi += vals[1]; item.vp += vals[2]; item.vay += vals[3]; item.hd += vals[4];
     item.accounts.add(String(account['MÃ TKNT']));
   });
