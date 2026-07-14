@@ -25,7 +25,7 @@ function tkntMillion(v){return Number(v||0).toLocaleString('vi-VN',{minimumFract
 function tkntRoman(n){const r=['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV','XV','XVI','XVII','XVIII','XIX','XX'];return r[n]||String(n+1)}
 function tkntNormKey(k){return String(k||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/Đ/g,'D').replace(/đ/g,'d').replace(/\s+/g,' ').trim().toUpperCase()}
 const TKNT_REPORT_FIELDS={thu:['THU'],chi:['CHI'],vp:['CUỐI KỲ VP','CK VP','CUOI KY VP'],vay:['CUỐI KỲ VAY','CK VAY','CUOI KY VAY'],hd:['CUỐI KỲ HĐ','CK HĐ','CK HD','CUOI KY HD']};
-function tkntField(row,names){for(const name of names){if(row[name]!==undefined&&row[name]!==null&&row[name]!=='')return row[name]}const keys=Object.keys(row||{});for(const name of names){const match=keys.find(k=>tkntNormKey(k)===tkntNormKey(name));if(match&&row[match]!==undefined&&row[match]!==null&&row[match]!=='')return row[match]}return ''}
+function tkntField(row,names){for(const name of names){if(row[name]!==undefined&&row[name]!==null&&row[name]!=='')return row[name]}const keys=Object.keys(row||{});for(const name of names){const wanted=tkntNormKey(name),match=keys.find(k=>{const actual=tkntNormKey(k);return actual===wanted||(wanted.length>=8&&actual.startsWith(wanted+' '))});if(match&&row[match]!==undefined&&row[match]!==null&&row[match]!=='')return row[match]}return ''}
 function tkntRawReportAmount(report,type){return tkntAmount(tkntField(report,TKNT_REPORT_FIELDS[type]||[type]))}
 function tkntReportAmount(report,type){return tkntRawReportAmount(report,type)}
 function tkntBCFieldValue(report,key){const map={'THU':'thu','CHI':'chi','CUỐI KỲ VP':'vp','CUỐI KỲ VAY':'vay','CUỐI KỲ HĐ':'hd'};return tkntReportAmount(report,map[key]||key)}
