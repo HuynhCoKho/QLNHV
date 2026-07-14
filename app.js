@@ -699,7 +699,11 @@ async function apiUploadFile(fileName, mimeType, base64Data, maHoSo) {
     body: JSON.stringify({ action: 'uploadFile', fileName, mimeType, base64Data, maHoSo })
   });
   const json = await res.json();
-  if (json.error) throw new Error(json.error);
+  if (json.error) {
+    const msg=String(json.error);
+    if (/DriveApp|getFileById|authorization|permissions|quyền/i.test(msg)) throw new Error('Apps Script chưa được cấp quyền Google Drive. Hãy chạy hàm CAP_QUYEN_GOOGLE_DRIVE một lần rồi triển khai lại Web App.');
+    throw new Error(msg);
+  }
   return json;
 }
 
