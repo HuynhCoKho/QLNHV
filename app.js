@@ -3,7 +3,7 @@
 // SPA don gian (khong dung framework) — goi thang API Apps Script
 // ============================================================
 
-const DB = { KhachHang: [], LoaiHinhKhachHang: [], ChuyenVien: [], TTHC: [], TyGia: [], HoSo: [], Khoanvay: [], ChoVay: [], Campuchia: [], NhomNghiepVu: [], TinhThanh: [], PhuongXa: [], QG: [], TKNHTONN: [], BCMoTKnTONN: [] };
+const DB = { KhachHang: [], LoaiHinhKhachHang: [], ChuyenVien: [], TTHC: [], TyGia: [], HoSo: [], Khoanvay: [], ChoVay: [], DTRNNN: [], DTRNNN_NDT: [], Campuchia: [], NhomNghiepVu: [], TinhThanh: [], PhuongXa: [], QG: [], TKNHTONN: [], BCMoTKnTONN: [] };
 
 const TRANGTHAI_HOSO = ['Chưa tiếp nhận', 'Đã tiếp nhận', 'Bổ sung hồ sơ', 'Đang xử lý', 'Đã xử lý'];
 const LOAI_TTHC_OPTIONS = ['Trực tuyến toàn trình', 'Thường'];
@@ -137,6 +137,8 @@ async function loadAll() {
   DB.HoSo = await apiGet('list', { sheet: 'HoSo' });
   DB.Khoanvay = await apiGet('list', { sheet: 'Khoanvay' });
   DB.ChoVay = await apiGet('list', { sheet: 'ChoVay' });
+  DB.DTRNNN = await apiGet('list', { sheet: 'DTRNNN' });
+  DB.DTRNNN_NDT = await apiGet('list', { sheet: 'DTRNNN_NDT' });
   DB.Campuchia = await apiGet('list', { sheet: 'Campuchia' });
   DB.NhomNghiepVu = await apiGet('list', { sheet: 'NhomNghiepVu' });
   DB.TinhThanh = await apiGet('list', { sheet: 'TinhThanh' });
@@ -191,6 +193,16 @@ function normalizeIds() {
     r['MÃ KH'] = String(r['MÃ KH'] || '');
     r['NGÀY VBXN'] = fmtDateVN(r['NGÀY VBXN']);
   });
+  DB.DTRNNN.forEach(r => {
+    r['RECORD ID'] = String(r['RECORD ID'] || '');
+    r['MÃ DỰ ÁN'] = String(r['MÃ DỰ ÁN'] || '');
+    r['MÃ NH PHỤC VỤ'] = String(r['MÃ NH PHỤC VỤ'] || '');
+  });
+  DB.DTRNNN_NDT.forEach(r => {
+    r['INVESTOR ID'] = String(r['INVESTOR ID'] || '');
+    r['RECORD ID'] = String(r['RECORD ID'] || '');
+    r['MÃ KH'] = String(r['MÃ KH'] || '');
+  });
   DB.Campuchia.forEach(r => { r.BCID=String(r.BCID||''); r['KỲ BC']=String(r['KỲ BC']||''); r['MÃ KH']=String(r['MÃ KH']||''); });
   DB.TyGia.forEach(r => { r.NgayCapNhat = fmtDateVN(r.NgayCapNhat); });
 }
@@ -216,6 +228,7 @@ const ROUTES = {
   tknton: { title: 'Tài khoản ngoại tệ ở nước ngoài', render: renderTKNT },
   khoanvay: { title: 'Lịch sử khoản vay nước ngoài', render: renderKhoanVay },
   chovay: { title: 'Cho vay ra nước ngoài', render: renderChoVay },
+  dtrnnn: { title: 'Đầu tư ra nước ngoài', render: renderDTRNNN },
   campuchia: { title: 'Thanh toán với Campuchia', render: renderCampuchia }
 };
 
@@ -234,6 +247,7 @@ const NAV_ITEMS = [
   { route: 'tknton', sheet: 'TKNHTONN', label: 'TK ngoại tệ ở NN' },
   { route: 'khoanvay', sheet: 'Khoanvay', label: 'Khoản vay nước ngoài' },
   { route: 'chovay', sheet: 'ChoVay', label: 'Cho vay ra nước ngoài' },
+  { route: 'dtrnnn', sheet: 'DTRNNN', label: 'Đầu tư ra nước ngoài' },
   { route: 'campuchia', sheet: 'Campuchia', label: 'Thanh toán Campuchia' }
 ];
 
@@ -517,9 +531,7 @@ function openHoSoForm(rec) {
         <fieldset class="subsection" id="fsDauTu"><legend>Đầu tư ra nước ngoài</legend>
           <div class="form-grid">
             <div class="field mono"><label>Mã số dự án</label><input type="text" name="MaDuAn" value="${esc(rec.MaDuAn || '')}" /></div>
-            <div class="field"><label>Nguyên tệ</label><select name="NguyenTeDauTu" id="fNguyenTeDauTu"><option value="">—</option>${nteOptions}</select></div>
-            <div class="field"><label>Số tiền đăng ký chuyển ra (nguyên tệ)</label><input type="text" name="SoTienDangKyNguyenTe" id="fSoTienDT" value="${rec.SoTienDangKyNguyenTe ? fmtNum(rec.SoTienDangKyNguyenTe) : ''}" /></div>
-            <div class="field"><label>Quy đổi USD (tỷ giá hiện tại)</label><input type="text" id="fSoTienDTUSD" readonly /></div>
+            <div class="field"><label>Vốn chuyển ra quy USD</label><input type="text" name="SoTienDangKyNguyenTe" id="fSoTienDT" value="${rec.SoTienDangKyNguyenTe ? fmtNum(rec.SoTienDangKyNguyenTe) : ''}" /><span class="hint">Nhập trực tiếp số USD, không quy đổi từ nguyên tệ.</span></div>
           </div>
         </fieldset>
 
@@ -534,7 +546,6 @@ function openHoSoForm(rec) {
   openModal(isEdit ? 'Sửa hồ sơ ' + rec.MaHoSo : 'Tạo hồ sơ mới', bodyHtml, (el) => {
     if (rec.NguyenTeVay) el.querySelector('#fNguyenTeVay').value = rec.NguyenTeVay;
     if (rec.NguyenTeChoVay) el.querySelector('#fNguyenTeChoVay').value = rec.NguyenTeChoVay;
-    if (rec.NguyenTeDauTu) el.querySelector('#fNguyenTeDauTu').value = rec.NguyenTeDauTu;
 
     const updateVisibility = () => {
       const trangThai = el.querySelector('#fTrangThai').value;
@@ -556,10 +567,6 @@ function openHoSoForm(rec) {
       const codeChoVay = el.querySelector('#fNguyenTeChoVay').value;
       const usdChoVay = toUSD(amtChoVay, codeChoVay);
       el.querySelector('#fSoTienChoVayUSD').value = usdChoVay === null ? '' : '≈ $' + fmtNum(usdChoVay);
-      const amt2 = parseNum(el.querySelector('#fSoTienDT').value);
-      const code2 = el.querySelector('#fNguyenTeDauTu').value;
-      const usd2 = toUSD(amt2, code2);
-      el.querySelector('#fSoTienDTUSD').value = usd2 === null ? '' : '≈ $' + fmtNum(usd2);
     };
     el.querySelector('#fMaKH').onchange = (e) => { el.querySelector('#khHint').textContent = khName(e.target.value); };
     if (rec.MaKH) el.querySelector('#khHint').textContent = khName(rec.MaKH);
@@ -569,8 +576,6 @@ function openHoSoForm(rec) {
     el.querySelector('#fNguyenTeVay').onchange = updateUSD;
     el.querySelector('#fSoTienChoVay').oninput = updateUSD;
     el.querySelector('#fNguyenTeChoVay').onchange = updateUSD;
-    el.querySelector('#fSoTienDT').oninput = updateUSD;
-    el.querySelector('#fNguyenTeDauTu').onchange = updateUSD;
     updateVisibility(); updateUSD();
     el.querySelector('#hsCancel').onclick = closeModal;
 
@@ -614,14 +619,15 @@ function openHoSoForm(rec) {
           NguyenTeChoVay: fd.get('NguyenTeChoVay') || '',
           MaDuAn: fd.get('MaDuAn') || '',
           SoTienDangKyNguyenTe: parseNum(fd.get('SoTienDangKyNguyenTe')),
-          NguyenTeDauTu: fd.get('NguyenTeDauTu') || '',
+          NguyenTeDauTu: fd.get('MaDuAn') ? 'USD' : '',
           GhiChu: fd.get('GhiChu') || ''
         };
         if (isEdit) await apiPost('update', 'HoSo', data, data.MaHoSo);
         else await apiPost('create', 'HoSo', data);
+        await reloadSheet('HoSo');
+        await syncInvestmentFromCase(data);
         toast('Đã lưu hồ sơ ' + data.MaHoSo);
         closeModal();
-        await reloadSheet('HoSo');
         renderHoSo();
       } catch (err) {
         toast(err.message, true);
