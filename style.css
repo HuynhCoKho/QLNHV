@@ -425,3 +425,7 @@ body:not(.auth-locked) .auth-gate{
 .loan-summary span{font-size:11px;font-weight:800;text-transform:uppercase;color:var(--ink-soft)}
 .loan-summary small{color:var(--ink-soft)}
 @media(max-width:700px){.loan-summary{grid-template-columns:1fr}.group-meta{display:block;margin:4px 0 0}}
+
+/* Báo cáo thanh toán Campuchia */
+.cam-entry .cam-money{min-width:145px;text-align:right}
+.report-unit{text-align:right;font-style:italic;margin:0 0 8px}

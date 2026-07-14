@@ -3,7 +3,7 @@
 // SPA don gian (khong dung framework) — goi thang API Apps Script
 // ============================================================
 
-const DB = { KhachHang: [], ChuyenVien: [], TTHC: [], TyGia: [], HoSo: [], Khoanvay: [], ChoVay: [], NhomNghiepVu: [], TinhThanh: [], PhuongXa: [], QG: [], TKNHTONN: [], BCMoTKnTONN: [] };
+const DB = { KhachHang: [], ChuyenVien: [], TTHC: [], TyGia: [], HoSo: [], Khoanvay: [], ChoVay: [], Campuchia: [], NhomNghiepVu: [], TinhThanh: [], PhuongXa: [], QG: [], TKNHTONN: [], BCMoTKnTONN: [] };
 
 const TRANGTHAI_HOSO = ['Chưa tiếp nhận', 'Đã tiếp nhận', 'Bổ sung hồ sơ', 'Đang xử lý', 'Đã xử lý'];
 const LOAI_TTHC_OPTIONS = ['Trực tuyến toàn trình', 'Thường'];
@@ -136,6 +136,7 @@ async function loadAll() {
   DB.HoSo = await apiGet('list', { sheet: 'HoSo' });
   DB.Khoanvay = await apiGet('list', { sheet: 'Khoanvay' });
   DB.ChoVay = await apiGet('list', { sheet: 'ChoVay' });
+  DB.Campuchia = await apiGet('list', { sheet: 'Campuchia' });
   DB.NhomNghiepVu = await apiGet('list', { sheet: 'NhomNghiepVu' });
   DB.TinhThanh = await apiGet('list', { sheet: 'TinhThanh' });
   DB.PhuongXa = await apiGet('list', { sheet: 'PhuongXa' });
@@ -189,6 +190,7 @@ function normalizeIds() {
     r['MÃ KH'] = String(r['MÃ KH'] || '');
     r['NGÀY VBXN'] = fmtDateVN(r['NGÀY VBXN']);
   });
+  DB.Campuchia.forEach(r => { r.BCID=String(r.BCID||''); r['KỲ BC']=String(r['KỲ BC']||''); r['MÃ KH']=String(r['MÃ KH']||''); });
   DB.TyGia.forEach(r => { r.NgayCapNhat = fmtDateVN(r.NgayCapNhat); });
 }
 
@@ -211,7 +213,8 @@ const ROUTES = {
   quocgia: { title: 'Quốc gia', render: renderQuocGia },
   tknton: { title: 'Tài khoản ngoại tệ ở nước ngoài', render: renderTKNT },
   khoanvay: { title: 'Lịch sử khoản vay nước ngoài', render: renderKhoanVay },
-  chovay: { title: 'Cho vay ra nước ngoài', render: renderChoVay }
+  chovay: { title: 'Cho vay ra nước ngoài', render: renderChoVay },
+  campuchia: { title: 'Thanh toán với Campuchia', render: renderCampuchia }
 };
 
 // route <-> ten sheet trong Google Sheet (dung de sap xep lai sidebar theo dung thu tu tab)
@@ -227,7 +230,8 @@ const NAV_ITEMS = [
   { route: 'quocgia', sheet: 'QG', label: 'Quốc gia' },
   { route: 'tknton', sheet: 'TKNHTONN', label: 'TK ngoại tệ ở NN' },
   { route: 'khoanvay', sheet: 'Khoanvay', label: 'Khoản vay nước ngoài' },
-  { route: 'chovay', sheet: 'ChoVay', label: 'Cho vay ra nước ngoài' }
+  { route: 'chovay', sheet: 'ChoVay', label: 'Cho vay ra nước ngoài' },
+  { route: 'campuchia', sheet: 'Campuchia', label: 'Thanh toán Campuchia' }
 ];
 
 async function buildSidebarNav() {
