@@ -855,11 +855,18 @@ function renderTTHC() {
     ${tthcStatsBarHtml()}
     <div class="toolbar"><input type="text" class="search-input" id="tthcSearch" placeholder="Tìm mã, tên thủ tục hoặc nhóm nghiệp vụ…" /></div>
     <div class="card"><div class="table-wrap"><table>
-    <thead><tr><th>Mã TTHC</th><th>Tên thủ tục</th><th>Loại</th><th>Nhóm nghiệp vụ</th><th>Trạng thái</th><th></th></tr></thead>
+    <thead><tr><th class="sortable-th" data-sort="MaTTHC">Mã TTHC <span></span></th><th class="sortable-th" data-sort="TenTTHC">Tên thủ tục <span></span></th><th class="sortable-th" data-sort="LoaiTTHC">Loại <span></span></th><th class="sortable-th" data-sort="NhomNghiepVu">Nhóm nghiệp vụ <span></span></th><th class="sortable-th" data-sort="TrangThai">Trạng thái <span></span></th><th></th></tr></thead>
     <tbody id="tthcBody"></tbody></table></div></div>`;
+  let sortKey = '', sortDir = 1;
   const draw = () => {
     const q = (document.getElementById('tthcSearch').value || '').trim().toLowerCase();
     const rows = DB.TTHC.filter(r => !q || [r.MaTTHC, r.TenTTHC, r.NhomNghiepVu, r.LoaiTTHC, r.TrangThai].some(v => String(v || '').toLowerCase().includes(q)));
+    if (sortKey) rows.sort((a, b) => String(a[sortKey] || '').localeCompare(String(b[sortKey] || ''), 'vi', { numeric: true, sensitivity: 'base' }) * sortDir);
+    document.querySelectorAll('.sortable-th').forEach(th => {
+      const active = th.dataset.sort === sortKey;
+      th.classList.toggle('sort-active', active);
+      th.querySelector('span').textContent = active ? (sortDir === 1 ? '▲' : '▼') : '↕';
+    });
     const body = document.getElementById('tthcBody');
     if (!rows.length) { body.innerHTML = `<tr><td colspan="6"><div class="empty-state"><h3>Không tìm thấy thủ tục phù hợp</h3></div></td></tr>`; return; }
     body.innerHTML = rows.map(r => `
@@ -879,6 +886,11 @@ function renderTTHC() {
     wireRowDetail(body, rows, 'MaTTHC', TTHC_DETAIL_FIELDS, 'TTHC');
   };
   document.getElementById('tthcSearch').oninput = draw;
+  document.querySelectorAll('.sortable-th').forEach(th => th.onclick = () => {
+    if (sortKey === th.dataset.sort) sortDir *= -1;
+    else { sortKey = th.dataset.sort; sortDir = 1; }
+    draw();
+  });
   draw();
 }
 const TTHC_DETAIL_FIELDS = [

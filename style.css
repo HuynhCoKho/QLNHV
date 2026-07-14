@@ -149,6 +149,11 @@ thead th{
   border-bottom:1px solid var(--line);
   white-space:nowrap;
 }
+.sortable-th{ cursor:pointer; user-select:none; }
+.sortable-th:hover{ color:var(--seal); background:#F3F1E9; }
+.sortable-th span{ display:inline-block; min-width:12px; margin-left:4px; color:#9A968A; font-size:9px; }
+.sortable-th.sort-active{ color:var(--seal); }
+.sortable-th.sort-active span{ color:var(--seal); }
 tbody td{ padding:11px 14px; border-bottom:1px solid var(--line); vertical-align:top; }
 tbody tr:last-child td{ border-bottom:none; }
 tbody tr:hover{ background:#FBFAF6; }
