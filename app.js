@@ -656,9 +656,16 @@ function openHoSoForm(rec) {
           NguyenTeDauTu: fd.get('MaDuAn') ? 'USD' : '',
           GhiChu: fd.get('GhiChu') || ''
         };
-        if (isEdit) await apiPost('update', 'HoSo', data, data.MaHoSo);
-        else await apiPost('create', 'HoSo', data);
-        await reloadSheet('HoSo');
+        if (isEdit) {
+          await apiPost('update', 'HoSo', data, data.MaHoSo);
+          const idx = DB.HoSo.findIndex(x => String(x.MaHoSo) === String(data.MaHoSo));
+          if (idx !== -1) DB.HoSo[idx] = { ...DB.HoSo[idx], ...data, _id: data.MaHoSo };
+        } else {
+          await apiPost('create', 'HoSo', data);
+          DB.HoSo.push({ ...data, _id: data.MaHoSo });
+        }
+        // Khong tai lai toan bo hon 15.000 ho so sau moi lan luu.
+        // Du lieu vua luu da co san trong form va duoc cap nhat truc tiep vao bo nho.
         await syncInvestmentFromCase(data);
         toast('Đã lưu hồ sơ ' + data.MaHoSo);
         closeModal();
