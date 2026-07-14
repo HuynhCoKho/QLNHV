@@ -45,7 +45,7 @@ async function apiPost(action, sheet, data, id) {
 // ---------------- Utils ----------------
 function fmtNum(n) {
   if (n === '' || n === null || n === undefined || isNaN(n)) return '';
-  return Number(n).toLocaleString('vi-VN', { maximumFractionDigits: 0 });
+  return Number(n).toLocaleString('vi-VN', { maximumFractionDigits: 6 });
 }
 function fmtRate(n) {
   if (n === '' || n === null || n === undefined || isNaN(n)) return '';
@@ -59,7 +59,26 @@ function fmtUSD(n) {
 }
 function parseNum(v) {
   if (v === '' || v === null || v === undefined) return '';
-  const n = Number(String(v).replace(/\./g, '').replace(/,/g, '.'));
+  if (typeof v === 'number') return Number.isFinite(v) ? v : '';
+  let s = String(v).trim().replace(/[\s\u00a0]/g, '').replace(/[^0-9,\.\-+]/g, '');
+  if (!s) return '';
+  const comma = s.lastIndexOf(','), dot = s.lastIndexOf('.');
+  if (comma >= 0 && dot >= 0) {
+    const decimal = comma > dot ? ',' : '.';
+    const thousands = decimal === ',' ? /\./g : /,/g;
+    s = s.replace(thousands, '').replace(decimal, '.');
+  } else if (comma >= 0) {
+    const parts = s.split(',');
+    s = parts.length === 2 ? parts[0] + '.' + parts[1] : parts.slice(0, -1).join('') + '.' + parts.at(-1);
+  } else if ((s.match(/\./g) || []).length > 1) {
+    const parts = s.split('.');
+    const allThousands = parts.slice(1).every(x => x.length === 3);
+    s = allThousands ? parts.join('') : parts.slice(0, -1).join('') + '.' + parts.at(-1);
+  } else if (dot >= 0) {
+    const parts = s.split('.');
+    if (parts[0] !== '0' && parts[1]?.length === 3) s = parts.join('');
+  }
+  const n = Number(s);
   return isNaN(n) ? '' : n;
 }
 function toISODate(ddmmyyyy) {
@@ -1327,6 +1346,26 @@ function wireVNDateInputs() {
   });
 }
 new MutationObserver(wireVNDateInputs).observe(document.getElementById('modalRoot'), {childList:true, subtree:true});
+
+function wireFlexibleNumberInputs() {
+  document.querySelectorAll('#modalRoot input[type="number"]').forEach(input => {
+    if (input.dataset.flexNumber === '1') return;
+    input.dataset.flexNumber = '1';
+    input.type = 'text';
+    input.inputMode = 'decimal';
+    input.autocomplete = 'off';
+    input.title = 'Có thể nhập phần thập phân bằng dấu phẩy hoặc dấu chấm';
+  });
+}
+new MutationObserver(wireFlexibleNumberInputs).observe(document.getElementById('modalRoot'), {childList:true, subtree:true});
+
+document.addEventListener('submit', event => {
+  event.target.querySelectorAll?.('input[data-flex-number="1"]').forEach(input => {
+    const value = input.dataset.grouped === '1' ? input.dataset.rawValue : input.value;
+    const parsed = parseNum(value);
+    input.value = parsed === '' ? '' : String(parsed);
+  });
+}, true);
 
 if (window.QLNHVAuth && typeof window.QLNHVAuth.start === 'function') {
   window.QLNHVAuth.start(boot);

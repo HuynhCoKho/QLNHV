@@ -56,8 +56,12 @@ function prepareInvestmentAmountInputs(root=document){
   root.querySelectorAll?.('#investmentForm input[name="TỔNG VỐN ĐẦU TƯ (USD)"],#investmentForm input[name="VỐN CHUYỂN RA (USD)"]').forEach(input=>{
     if(input.dataset.grouped==='1')return;
     input.dataset.grouped='1'; input.type='text'; input.inputMode='numeric';
-    input.value=input.value===''?'':fmtNum(parseNum(input.value));
-    input.addEventListener('input',()=>{const digits=input.value.replace(/\D/g,'');input.value=digits?Number(digits).toLocaleString('vi-VN'):''});
+    input.dataset.rawValue=input.value===''?'':String(parseNum(input.value));
+    const showGrouped=()=>{const n=parseNum(input.dataset.rawValue);input.value=n===''?'':Number(n).toLocaleString('vi-VN',{maximumFractionDigits:6})};
+    showGrouped();
+    input.addEventListener('focus',()=>{input.value=input.dataset.rawValue});
+    input.addEventListener('input',()=>{input.dataset.rawValue=input.value});
+    input.addEventListener('blur',()=>{const n=parseNum(input.value);input.dataset.rawValue=n===''?'':String(n);showGrouped()});
   });
 }
 
