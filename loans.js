@@ -184,7 +184,37 @@ function openLoanForm(record) {
     <div class="field span-2"><label>File văn bản xác nhận</label><input type="file" id="loanFile" accept=".pdf,image/*"><span class="hint">File lưu riêng trên Google Drive; giữ nguyên file cũ nếu không chọn file mới.</span>${record.FILE?`<a href="${esc(record.FILE)}" target="_blank" rel="noopener">Mở file hiện tại</a>`:''}</div>
     </div><div class="modal-foot"><button type="button" class="btn btn-outline" id="cancelLoan">Hủy</button><button class="btn btn-primary" id="saveLoan">Lưu</button></div></form>`, el=>{
       el.querySelector('#cancelLoan').onclick=closeModal;
-      el.querySelector('form').onsubmit=async e=>{e.preventDefault();const btn=el.querySelector('#saveLoan');btn.disabled=true;try{const fd=new FormData(e.target),data={};LOAN_FIELDS.forEach(k=>data[k]=fd.get(k)||'');data['NGÀY VBXN']=toVNDate(fd.get('NGÀY VBXN'));data['KIM NGẠCH VAY']=parseNum(fd.get('KIM NGẠCH VAY'));data['DƯ NỢ']=parseNum(fd.get('DƯ NỢ'));data['HẾT NỢ']=fd.get('HẾT NỢ')==='true';data['CP BẢO LÃNH']=fd.get('CP BẢO LÃNH')==='true';data.FILE=record.FILE||'';const file=el.querySelector('#loanFile').files[0];if(file)data.FILE=(await uploadLoanFile(file,data['MÃ SỐ KV'])).url;await apiPost(edit?'update':'create','Khoanvay',data,edit?record['MÃ SỐ KV']:undefined);await reloadSheet('Khoanvay');toast('Đã lưu khoản vay '+data['MÃ SỐ KV']);closeModal();renderKhoanVay();}catch(err){toast(err.message,true);btn.disabled=false;}};
+      el.querySelector('form').onsubmit=async e=>{
+        e.preventDefault();
+        const btn=el.querySelector('#saveLoan'), oldLabel=btn.textContent;
+        btn.disabled=true; btn.textContent='Đang lưu…';
+        try {
+          const fd=new FormData(e.target),data={};
+          LOAN_FIELDS.forEach(k=>data[k]=fd.get(k)||'');
+          data['NGÀY VBXN']=toVNDate(fd.get('NGÀY VBXN'));
+          data['KIM NGẠCH VAY']=parseNum(fd.get('KIM NGẠCH VAY'));
+          data['DƯ NỢ']=parseNum(fd.get('DƯ NỢ'));
+          data['HẾT NỢ']=fd.get('HẾT NỢ')==='true';
+          data['CP BẢO LÃNH']=fd.get('CP BẢO LÃNH')==='true';
+          // Khoản vay đã hết nợ thì dư nợ phải bằng 0 để số liệu thống kê nhất quán.
+          if(data['HẾT NỢ']) data['DƯ NỢ']=0;
+          data.FILE=record.FILE||'';
+          const file=el.querySelector('#loanFile').files[0];
+          if(file){btn.textContent='Đang tải file…';data.FILE=(await uploadLoanFile(file,data['MÃ SỐ KV'])).url;btn.textContent='Đang lưu…';}
+          await apiPost(edit?'update':'create','Khoanvay',data,edit?record['MÃ SỐ KV']:undefined);
+
+          // Không tải lại toàn bộ hơn 2.400 dòng. API đã xác nhận thành công thì
+          // cập nhật đúng một bản ghi trong bộ nhớ và vẽ lại ngay trên màn hình.
+          if(edit) Object.assign(record,data);
+          else DB.Khoanvay.push(data);
+          closeModal();
+          renderKhoanVay();
+          toast('Đã lưu khoản vay '+data['MÃ SỐ KV']);
+        }catch(err){
+          toast('Chưa lưu được: '+err.message,true);
+          btn.disabled=false; btn.textContent=oldLabel;
+        }
+      };
     });
 }
 

@@ -146,26 +146,20 @@ async function boot() {
 }
 
 async function loadAll() {
-  // Goi lan luot tung sheet (khong dung Promise.all) vi Apps Script Web App
-  // xu ly nhieu request dong thoi khong on dinh, de gay loi ngau nhien.
-  DB.KhachHang = await apiGet('list', { sheet: 'KhachHang' });
-  DB.LoaiHinhKhachHang = await apiGet('list', { sheet: 'LoaiHinhKhachHang' });
-  DB.ChuyenVien = await apiGet('list', { sheet: 'ChuyenVien' });
-  DB.TTHC = await apiGet('list', { sheet: 'TTHC' });
-  DB.TyGia = await apiGet('list', { sheet: 'TyGia' });
-  DB.HoSo = await apiGet('list', { sheet: 'HoSo' });
-  DB.Khoanvay = await apiGet('list', { sheet: 'Khoanvay' });
-  DB.ChoVay = await apiGet('list', { sheet: 'ChoVay' });
-  DB.DTRNNN = await apiGet('list', { sheet: 'DTRNNN' });
-  DB.DTRNNN_NDT = await apiGet('list', { sheet: 'DTRNNN_NDT' });
-  DB.Campuchia = await apiGet('list', { sheet: 'Campuchia' });
-  try { DB.VPHC = await apiGet('list', { sheet: 'VPHC' }); } catch (e) { DB.VPHC = []; }
-  DB.NhomNghiepVu = await apiGet('list', { sheet: 'NhomNghiepVu' });
-  DB.TinhThanh = await apiGet('list', { sheet: 'TinhThanh' });
-  DB.PhuongXa = await apiGet('list', { sheet: 'PhuongXa' });
-  DB.QG = await apiGet('list', { sheet: 'QG' });
-  DB.TKNHTONN = await apiGet('list', { sheet: 'TKNHTONN' });
-  DB.BCMoTKnTONN = await apiGet('list', { sheet: 'BCMoTKnTONN' });
+  // Tải theo nhóm nhỏ: nhanh hơn tải tuần tự 18 lần nhưng không dồn quá nhiều
+  // yêu cầu cùng lúc khiến Apps Script thiếu ổn định.
+  const sheets=['KhachHang','LoaiHinhKhachHang','ChuyenVien','TTHC','TyGia','HoSo','Khoanvay','ChoVay','DTRNNN','DTRNNN_NDT','Campuchia','VPHC','NhomNghiepVu','TinhThanh','PhuongXa','QG','TKNHTONN','BCMoTKnTONN'];
+  const title=document.getElementById('pageTitle');
+  let completed=0;
+  for(let i=0;i<sheets.length;i+=3){
+    const batch=sheets.slice(i,i+3);
+    await Promise.all(batch.map(async sheet=>{
+      try{DB[sheet]=await apiGet('list',{sheet});}
+      catch(err){if(sheet==='VPHC')DB.VPHC=[];else throw err;}
+      completed++;
+      if(title)title.textContent=`Chào mừng đến Trang quản lý công việc của Cỏ Khô — đang tải ${completed}/${sheets.length}`;
+    }));
+  }
   normalizeIds();
 }
 
