@@ -46,7 +46,15 @@ async function printVPHCReport(from,to,rows,total){
   document.body.appendChild(box);
   toast('Đang tạo file PDF…');
   try{
-    await html2pdf().set({margin:[9,8,12,8],filename:`Bao-cao-VPHC-${from}-${to}.pdf`,image:{type:'jpeg',quality:.98},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy'],avoid:'tr'}}).from(box).save();
+    const worker=html2pdf().set({margin:[9,8,12,8],filename:`Bao-cao-VPHC-${from}-${to}.pdf`,image:{type:'jpeg',quality:.98},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy'],avoid:'tr'}}).from(box).toPdf();
+    const pdf=await worker.get('pdf'),pages=pdf.internal.getNumberOfPages();
+    for(let page=1;page<=pages;page++){
+      pdf.setPage(page);
+      pdf.setFontSize(8);
+      pdf.setTextColor(60);
+      pdf.text(`${page}/${pages}`,202,291,{align:'right'});
+    }
+    await worker.save();
   }catch(err){toast('Không tạo được PDF: '+err.message,true);}
   finally{box.remove();}
 }
