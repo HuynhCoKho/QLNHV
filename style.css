@@ -138,7 +138,7 @@ body{
 .table-wrap{ overflow-x:auto; }
 table{ width:100%; border-collapse:collapse; font-size:13.5px; }
 thead th{
-  text-align:left;
+  text-align:center;
   font-family:'IBM Plex Mono', monospace;
   font-size:11px;
   text-transform:uppercase;
@@ -466,3 +466,4 @@ body:not(.auth-locked) .auth-gate{
 /* Báo cáo thanh toán Campuchia */
 .cam-entry .cam-money{min-width:145px;text-align:right}
 .report-unit{text-align:right;font-style:italic;margin:0 0 8px}
+
