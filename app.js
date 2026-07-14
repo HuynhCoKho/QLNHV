@@ -299,6 +299,9 @@ async function buildSidebarNav() {
 function route() {
   const r = (location.hash || '#hoso').replace('#', '');
   const cfg = ROUTES[r] || ROUTES.hoso;
+  // Moi man hinh phai mo tu dau trang. Neu giu lai vi tri cuon cua tab truoc,
+  // cac khoi tieu de/thong ke/tim kiem se bi nam ngoai man hinh.
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   document.querySelectorAll('.nav-item').forEach(a => a.classList.toggle('active', a.dataset.route === r));
   document.getElementById('pageTitle').textContent = cfg.title;
   cfg.render();
