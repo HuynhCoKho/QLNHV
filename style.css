@@ -185,11 +185,12 @@ tbody tr:hover{ background:#FBFAF6; }
   padding:4px 10px 4px 8px;
   border-radius:999px;
   border:1.5px solid currentColor;
-  transform:rotate(-1.2deg);
+  transform:none;
   letter-spacing:.01em;
   white-space:nowrap;
   width:max-content;
-  max-width:none;
+  max-width:100%;
+  justify-content:center;
 }
 .badge-neutral{ color:#8A8371; background:#F1EFE7; }
 .badge-amber{ color:var(--amber); background:var(--amber-bg); }
