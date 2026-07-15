@@ -493,3 +493,11 @@ body:not(.auth-locked) .auth-gate{
 .cam-entry .cam-money{min-width:145px;text-align:right}
 .report-unit{text-align:right;font-style:italic;margin:0 0 8px}
 
+.hsr-wrap{max-height:68vh}
+.hsr-table th:nth-child(n+3),.hsr-table td:nth-child(n+3){text-align:center;white-space:normal;min-width:92px}
+.hsr-table th:first-child{min-width:125px}.hsr-table th:nth-child(2){min-width:300px}
+.hsr-province td{background:#dcebe5;font-weight:700;font-size:15px;border-top:2px solid var(--green,#168363)}
+.hsr-procedure td{background:#edf5f2;font-weight:700}
+.hsr-subtotal td,.hsr-province-total td,.hsr-grand td{font-weight:700}
+.hsr-province-total td{background:#f3f1eb}.hsr-grand td{background:#dedbd2}
+.hsr-check{font-size:18px;font-weight:700;color:#13795b}

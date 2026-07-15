@@ -480,7 +480,8 @@ function wireRowDetail(bodyEl, records, idField, fieldDefs, titlePrefix) {
 // MODULE: HO SO TTHC
 // ============================================================
 function renderHoSo() {
-  document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" id="btnNewHoSo">+ Hồ sơ mới</button>`;
+  document.getElementById('topbarActions').innerHTML = `<button class="btn btn-outline" id="btnHoSoReport">Báo cáo giải quyết TTHC</button><button class="btn btn-primary" id="btnNewHoSo">+ Hồ sơ mới</button>`;
+  document.getElementById('btnHoSoReport').onclick = () => openHoSoResolutionReportPrompt();
   document.getElementById('btnNewHoSo').onclick = () => openHoSoForm();
 
   const view = document.getElementById('view');
