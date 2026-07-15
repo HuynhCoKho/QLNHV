@@ -13,6 +13,30 @@ const LOAI_DAC_BIET_OPTIONS = [
   { value: 'DacBiet', label: 'Đặc biệt' }
 ];
 
+// Chỉ tải dữ liệu thật sự cần cho màn hình đang mở. Trước đây trang bắt buộc
+// chờ đủ 18 bảng (kể cả các bảng không dùng), làm một bảng lớn chậm là toàn bộ
+// ứng dụng bị đứng ở màn hình chào mừng.
+const ROUTE_SHEETS = {
+  hoso:['KhachHang','ChuyenVien','TTHC','TyGia','HoSo','NhomNghiepVu'],
+  khachhang:['KhachHang','LoaiHinhKhachHang','PhuongXa','TinhThanh'],
+  loaihinhkhachhang:['LoaiHinhKhachHang','KhachHang'],
+  tthc:['TTHC','NhomNghiepVu'],
+  chuyenvien:['ChuyenVien'],
+  tygia:['TyGia'],
+  nhomnghiepvu:['NhomNghiepVu'],
+  tinhthanh:['TinhThanh','KhachHang','TKNHTONN','QG','ChuyenVien'],
+  phuongxa:['PhuongXa','ChuyenVien'],
+  quocgia:['QG'],
+  tknton:['KhachHang','QG','TKNHTONN','BCMoTKnTONN','TyGia','TinhThanh','ChuyenVien'],
+  khoanvay:['KhachHang','Khoanvay','HoSo','TTHC','NhomNghiepVu'],
+  chovay:['KhachHang','ChoVay','HoSo','TTHC','NhomNghiepVu'],
+  dtrnnn:['KhachHang','QG','DTRNNN','DTRNNN_NDT','HoSo','TTHC','NhomNghiepVu'],
+  campuchia:['KhachHang','Campuchia','ChuyenVien'],
+  vphc:['KhachHang','VPHC','HoSo','NhomNghiepVu','ChuyenVien']
+};
+const LOADED_SHEETS = new Set();
+let routeLoadToken = 0;
+
 // ---------------- API helpers ----------------
 async function apiGet(action, params = {}) {
   const url = new URL(API_URL);
@@ -110,7 +134,16 @@ function toast(msg, isError) {
 }
 
 // ---------------- Lookups ----------------
-function khName(ma) { const r = DB.KhachHang.find(x => x.MaKH === ma); return r ? r.TenKhachHang : ''; }
+function comparableCustomerCode(value){return String(value??'').trim().replace(/^0+(?=\d)/,'');}
+function findCustomerByCode(ma){
+  const raw=String(ma??'').trim();
+  const exact=DB.KhachHang.find(x=>String(x.MaKH).trim()===raw);
+  if(exact)return exact;
+  const key=comparableCustomerCode(raw);
+  const matches=DB.KhachHang.filter(x=>comparableCustomerCode(x.MaKH)===key);
+  return matches.length===1?matches[0]:null;
+}
+function khName(ma) { const r=findCustomerByCode(ma); return r ? r.TenKhachHang : ''; }
 function qgName(ma) { const r = DB.QG.find(x => x['MÃ QUỐC GIA'] === String(ma)); return r ? r['TÊN QUỐC GIA'] : String(ma || ''); }
 function cvName(ma) { const r = DB.ChuyenVien.find(x => x.MaCV === ma); return r ? r.HoTen : ''; }
 function tthcRow(ma) { return DB.TTHC.find(x => x.MaTTHC === ma); }
@@ -133,9 +166,9 @@ async function boot() {
     await apiGet('ping');
     status.textContent = '● đã kết nối';
     status.className = 'conn-status conn-ok';
-    await buildSidebarNav();
-    await loadAll();
-    route();
+    // Điều hướng dùng được ngay; việc sắp xếp menu theo thứ tự sheet chạy nền.
+    buildSidebarNav();
+    await route();
   } catch (err) {
     status.textContent = '● lỗi kết nối API';
     status.className = 'conn-status conn-error';
@@ -160,6 +193,24 @@ async function loadAll() {
       if(title)title.textContent=`Chào mừng đến Trang quản lý công việc của Cỏ Khô — đang tải ${completed}/${sheets.length}`;
     }));
   }
+  normalizeIds();
+}
+
+async function ensureRouteData(routeName,token) {
+  const sheets=ROUTE_SHEETS[routeName]||ROUTE_SHEETS.hoso;
+  const missing=sheets.filter(sheet=>!LOADED_SHEETS.has(sheet));
+  if(!missing.length)return;
+  const title=document.getElementById('pageTitle');
+  let completed=0;
+  // Các bảng phụ tải song song với bảng chính; không còn 5 lượt tuần tự trước
+  // khi bắt đầu tải HoSo như cơ chế cũ.
+  await Promise.all(missing.map(async sheet=>{
+    try{DB[sheet]=await apiGet('list',{sheet});}
+    catch(err){if(sheet==='VPHC')DB.VPHC=[];else throw err;}
+    LOADED_SHEETS.add(sheet);
+    completed++;
+    if(token===routeLoadToken&&title)title.textContent=`Đang tải dữ liệu ${completed}/${missing.length}…`;
+  }));
   normalizeIds();
 }
 
@@ -236,6 +287,7 @@ function normalizeIds() {
 
 async function reloadSheet(sheet) {
   DB[sheet] = await apiGet('list', { sheet });
+  LOADED_SHEETS.add(sheet);
   normalizeIds();
   return DB[sheet];
 }
@@ -297,17 +349,29 @@ async function buildSidebarNav() {
     </a>`).join('');
 }
 
-function route() {
+async function route() {
   const r = (location.hash || '#hoso').replace('#', '');
   const cfg = ROUTES[r] || ROUTES.hoso;
+  const token=++routeLoadToken;
   // Moi man hinh phai mo tu dau trang. Neu giu lai vi tri cuon cua tab truoc,
   // cac khoi tieu de/thong ke/tim kiem se bi nam ngoai man hinh.
   window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   document.querySelectorAll('.nav-item').forEach(a => a.classList.toggle('active', a.dataset.route === r));
-  document.getElementById('pageTitle').textContent = cfg.title;
-  cfg.render();
+  document.getElementById('pageTitle').textContent = 'Đang tải '+cfg.title+'…';
+  document.getElementById('view').innerHTML='<div class="empty-state"><h3>Đang lấy dữ liệu cần thiết…</h3><p>Bạn chỉ cần chờ dữ liệu của chức năng đang mở.</p></div>';
+  try{
+    await ensureRouteData(r,token);
+    if(token!==routeLoadToken)return;
+    document.getElementById('pageTitle').textContent=cfg.title;
+    cfg.render();
+  }catch(err){
+    if(token!==routeLoadToken)return;
+    document.getElementById('pageTitle').textContent=cfg.title;
+    document.getElementById('view').innerHTML=`<div class="empty-state"><h3>Không tải được dữ liệu</h3><p class="mono">${esc(err.message)}</p><button class="btn btn-primary" id="retryRoute">Thử lại</button></div>`;
+    const retry=document.getElementById('retryRoute');if(retry)retry.onclick=route;
+  }
 }
-window.addEventListener('hashchange', route);
+window.addEventListener('hashchange',()=>route());
 
 // ---------------- Modal helper ----------------
 function openModal(title, bodyHtml, onMount) {
@@ -786,7 +850,7 @@ function openKHForm(rec) {
   const bodyHtml = `
     <form id="khForm">
       <div class="form-grid">
-        <div class="field mono"><label>Mã khách hàng (MST)</label><input type="text" name="MaKH" value="${esc(rec.MaKH || '')}" ${isEdit ? 'readonly' : ''} required /></div>
+        <div class="field mono"><label>Mã khách hàng (MST)</label><input type="text" name="MaKH" value="${esc(rec.MaKH || '')}" required />${isEdit?'<span class="hint">Nếu đổi mã, hệ thống sẽ tự cập nhật tất cả bảng đang liên kết.</span>':''}</div>
         <div class="field mono"><label>Mã định danh</label><input type="text" name="MaDinhDanh" value="${esc(rec.MaDinhDanh || '')}" /></div>
 
         <div class="field"><label>Loại khách hàng</label>
@@ -829,14 +893,23 @@ function openKHForm(rec) {
       const fd = new FormData(e.target);
       const data = Object.fromEntries(fd.entries());
       data.MaKH = data.MaKH.trim();
+      const oldCode=isEdit?String(rec.MaKH):'';
+      const saveBtn=e.target.querySelector('button[type="submit"]'),oldLabel=saveBtn.textContent;
+      saveBtn.disabled=true;saveBtn.textContent='Đang lưu…';
       try {
-        if (isEdit) await apiPost('update', 'KhachHang', data, data.MaKH);
+        if (isEdit&&oldCode!==data.MaKH) {
+          if(!confirm(`Đổi mã khách hàng ${oldCode} thành ${data.MaKH} và cập nhật toàn bộ dữ liệu liên kết?`)){saveBtn.disabled=false;saveBtn.textContent=oldLabel;return;}
+          await apiPost('renameCustomerId','KhachHang',{MaKH:data.MaKH},oldCode);
+          await apiPost('update','KhachHang',data,data.MaKH);
+          updateCustomerCodeInMemory(oldCode,data.MaKH);
+        }
+        else if (isEdit) await apiPost('update', 'KhachHang', data, oldCode);
         else await apiPost('create', 'KhachHang', data);
+        if(isEdit)Object.assign(rec,data);else DB.KhachHang.push(data);
         toast('Đã lưu khách hàng ' + data.MaKH);
         closeModal();
-        await reloadSheet('KhachHang');
         renderKhachHang();
-      } catch (err) { toast(err.message, true); }
+      } catch (err) { toast(err.message, true);saveBtn.disabled=false;saveBtn.textContent=oldLabel; }
     };
   });
 }
@@ -856,6 +929,14 @@ function tthcStatsBarHtml() {
     <div class="stat-chip">Thường: <b>${normal}</b></div>
     <div class="stat-chip">Hủy: <b>${cancelled}</b></div>
   </div>`;
+}
+
+function updateCustomerCodeInMemory(oldCode,newCode){
+  const refs=[
+    ['HoSo','MaKH'],['Khoanvay','MÃ KH'],['ChoVay','MÃ KH'],['DTRNNN_NDT','MÃ KH'],
+    ['Campuchia','MÃ KH'],['VPHC','MÃ KH'],['TKNHTONN','MÃ ĐƠN VỊ'],['DTRNNN','MÃ NH PHỤC VỤ']
+  ];
+  refs.forEach(([sheet,field])=>(DB[sheet]||[]).forEach(row=>{if(String(row[field]||'')===oldCode)row[field]=newCode;}));
 }
 
 function renderTTHC() {
