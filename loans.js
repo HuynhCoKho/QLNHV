@@ -138,9 +138,8 @@ function renderKhoanVay() {
     const body = document.getElementById('loanBody');
     body.innerHTML = sortedGroups.length ? sortedGroups.map(([ma, loans]) => {
       loans.sort((a,b)=>parseVNDateSort(b['NGÀY VBXN'])-parseVNDateSort(a['NGÀY VBXN']));
-      const kh = DB.KhachHang.find(x=>x.MaKH===ma);
-      const contact = kh ? [kh.DiaChiSo,kh.DiaChiPhuongXa,kh.DiaChiTinhTP].filter(Boolean).join(', ') : '';
-      return `<tr class="group-row"><td colspan="10"><b>${esc(khName(ma)||'Chưa xác định khách hàng')}</b><span class="group-meta mono">Mã KH: ${esc(ma||'—')} · ${loans.length} khoản vay</span>${contact?`<span class="group-meta">${esc(contact)}</span>`:''}</td></tr>` +
+      const paidCount=loans.filter(loanIsPaid).length, outstandingCount=loans.length-paidCount;
+      return `<tr class="group-row"><td colspan="10"><b>${esc(khName(ma)||'Chưa xác định khách hàng')}</b><span class="group-meta mono">Mã KH: ${esc(ma||'—')}</span><span class="group-meta">${loans.length} khoản vay · Còn dư nợ: <b>${outstandingCount}</b> · Đã hết nợ: <b>${paidCount}</b></span></td></tr>` +
         loans.map(r => `<tr class="clickable-row" data-loan="${esc(r['MÃ SỐ KV'])}">
           <td class="mono"><b>${esc(r['MÃ SỐ KV'])}</b></td><td>${esc(r['SỐ VBXN'])}</td>
           <td class="mono">${esc(fmtDateVN(r['NGÀY VBXN']))}</td><td class="num">${esc(fmtNum(r['KIM NGẠCH VAY']))}</td><td class="num"><b>${esc(fmtNum(r['DƯ NỢ']))}</b></td>
