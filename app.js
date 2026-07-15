@@ -56,14 +56,32 @@ async function apiGet(action, params = {}) {
 }
 
 async function apiPost(action, sheet, data, id) {
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action, sheet, data, id })
-  });
-  const json = await res.json();
-  if (json.error) throw new Error(json.error);
-  return json;
+  const body = JSON.stringify({ action, sheet, data, id });
+  // Apps Script thỉnh thoảng đóng kết nối trước khi trình duyệt nhận phản hồi,
+  // dù thao tác cập nhật vẫn có thể đã chạy xong. Với thao tác idempotent như
+  // update, thử lại một lần để tránh báo "Failed to fetch" giả cho người dùng.
+  const maxAttempts = action === 'update' ? 2 : 1;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body
+      });
+      if (!res.ok) throw new Error(`Máy chủ phản hồi lỗi ${res.status}`);
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      return json;
+    } catch (err) {
+      if (attempt === maxAttempts) {
+        if (/failed to fetch/i.test(String(err && err.message))) {
+          throw new Error('Mất kết nối tạm thời với Google. Vui lòng thử lưu lại.');
+        }
+        throw err;
+      }
+      await new Promise(r => setTimeout(r, 900));
+    }
+  }
 }
 
 // ---------------- Utils ----------------
@@ -1018,22 +1036,39 @@ function openTTHCForm(rec) {
         </select></div>
         <div class="field span-2"><label>Ghi chú</label><textarea name="GhiChu">${esc(rec.GhiChu || '')}</textarea></div>
       </div>
-      <div class="modal-foot"><button type="button" class="btn btn-outline" id="tthcCancel">Hủy</button><button type="submit" class="btn btn-primary">Lưu</button></div>
+      <div class="modal-foot"><button type="button" class="btn btn-outline" id="tthcCancel">Hủy</button><button type="submit" class="btn btn-primary" id="tthcSave">Lưu</button></div>
     </form>`;
   openModal(isEdit ? 'Sửa thủ tục' : 'Thủ tục mới', bodyHtml, (el) => {
     el.querySelector('#tthcCancel').onclick = closeModal;
     el.querySelector('#tthcForm').onsubmit = async (e) => {
       e.preventDefault();
+      const saveBtn = el.querySelector('#tthcSave');
+      const cancelBtn = el.querySelector('#tthcCancel');
+      const oldLabel = saveBtn.textContent;
+      saveBtn.disabled = true;
+      cancelBtn.disabled = true;
+      saveBtn.textContent = 'Đang lưu…';
       const data = Object.fromEntries(new FormData(e.target).entries());
       data.MaTTHC = data.MaTTHC.trim();
       try {
         if (isEdit) await apiPost('update', 'TTHC', data, data.MaTTHC);
         else await apiPost('create', 'TTHC', data);
-        toast('Đã lưu thủ tục ' + data.MaTTHC);
+        // Cập nhật ngay dữ liệu trên màn hình; không bắt người dùng chờ thêm
+        // một lượt tải toàn bộ sheet TTHC sau khi máy chủ đã lưu thành công.
+        if (isEdit) Object.assign(rec, data);
+        else DB.TTHC.push(data);
         closeModal();
-        await reloadSheet('TTHC');
         renderTTHC();
-      } catch (err) { toast(err.message, true); }
+        toast('Đã lưu thủ tục ' + data.MaTTHC);
+        // Đồng bộ lại âm thầm để nhận đúng dữ liệu Google Sheets mà không làm
+        // chậm cảm giác lưu của người dùng.
+        reloadSheet('TTHC').catch(() => {});
+      } catch (err) {
+        toast('Chưa lưu được: ' + err.message, true);
+        saveBtn.disabled = false;
+        cancelBtn.disabled = false;
+        saveBtn.textContent = oldLabel;
+      }
     };
   });
 }
