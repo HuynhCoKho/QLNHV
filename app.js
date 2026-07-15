@@ -61,6 +61,7 @@ async function apiPost(action, sheet, data, id) {
   // dù thao tác cập nhật vẫn có thể đã chạy xong. Với thao tác idempotent như
   // update, thử lại một lần để tránh báo "Failed to fetch" giả cho người dùng.
   const maxAttempts = action === 'update' ? 2 : 1;
+  let lastError;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const res = await fetch(API_URL, {
@@ -73,15 +74,27 @@ async function apiPost(action, sheet, data, id) {
       if (json.error) throw new Error(json.error);
       return json;
     } catch (err) {
+      lastError = err;
       if (attempt === maxAttempts) {
-        if (/failed to fetch/i.test(String(err && err.message))) {
-          throw new Error('Mất kết nối tạm thời với Google. Vui lòng thử lưu lại.');
-        }
-        throw err;
+        break;
       }
       await new Promise(r => setTimeout(r, 900));
     }
   }
+  // Phản hồi ContentService của Apps Script đi qua script.googleusercontent.com.
+  // Một số phiên Chrome chặn/đóng phản hồi redirect và ném Failed to fetch dù
+  // doPost vẫn chạy. Với UPDATE (idempotent), gửi dự phòng ở no-cors; màn hình
+  // gọi hàm này sẽ đọc lại sheet để xác nhận kết quả thực tế.
+  if (action === 'update' && /failed to fetch/i.test(String(lastError && lastError.message))) {
+    await fetch(API_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body
+    });
+    return { ok: true, verifyRequired: true };
+  }
+  throw lastError;
 }
 
 // ---------------- Utils ----------------
@@ -1051,8 +1064,19 @@ function openTTHCForm(rec) {
       const data = Object.fromEntries(new FormData(e.target).entries());
       data.MaTTHC = data.MaTTHC.trim();
       try {
-        if (isEdit) await apiPost('update', 'TTHC', data, data.MaTTHC);
-        else await apiPost('create', 'TTHC', data);
+        const saved = isEdit
+          ? await apiPost('update', 'TTHC', data, data.MaTTHC)
+          : await apiPost('create', 'TTHC', data);
+        if (saved && saved.verifyRequired) {
+          saveBtn.textContent = 'Đang kiểm tra…';
+          await new Promise(r => setTimeout(r, 700));
+          await reloadSheet('TTHC');
+          const actual = DB.TTHC.find(x => String(x.MaTTHC) === data.MaTTHC);
+          if (!actual || !['TenTTHC','LoaiTTHC','NhomNghiepVu','TrangThai','GhiChu']
+            .every(k => String(actual[k] || '') === String(data[k] || ''))) {
+            throw new Error('Google chưa xác nhận dữ liệu đã lưu. Vui lòng bấm Lưu lại.');
+          }
+        }
         // Cập nhật ngay dữ liệu trên màn hình; không bắt người dùng chờ thêm
         // một lượt tải toàn bộ sheet TTHC sau khi máy chủ đã lưu thành công.
         if (isEdit) Object.assign(rec, data);
