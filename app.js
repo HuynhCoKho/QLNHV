@@ -1390,15 +1390,16 @@ const TINHTHANH_DETAIL_FIELDS = [
 function openTinhThanhForm(rec) {
   const isEdit = !!rec;
   rec = rec || {};
+  const originalTenTinh = String(rec.TenTinh || '').trim();
   const bodyHtml = `
     <form id="ttForm">
       <div class="form-grid cols-1">
-        <div class="field"><label>Tên tỉnh/thành phố</label><input type="text" name="TenTinh" value="${esc(rec.TenTinh || '')}" ${isEdit ? 'readonly' : ''} required /></div>
+        <div class="field"><label>Tên tỉnh/thành phố</label><input type="text" name="TenTinh" value="${esc(rec.TenTinh || '')}" required /><small>Có thể sửa tên; hệ thống sẽ cập nhật các khách hàng và báo cáo liên quan.</small></div>
         <div class="field"><label>Sáp nhập từ (nếu có)</label><input type="text" name="TinhSapNhap" value="${esc(rec.TinhSapNhap || '')}" /></div>
         <div class="field"><label>Trung tâm hành chính (TTHC)</label><input type="text" name="TTHC" value="${esc(rec.TTHC || '')}" /></div>
         <div class="field"><label>Ghi chú</label><textarea name="GhiChu">${esc(rec.GhiChu || '')}</textarea></div>
       </div>
-      <div class="modal-foot"><button type="button" class="btn btn-outline" id="ttCancel">Hủy</button><button type="submit" class="btn btn-primary">Lưu</button></div>
+      <div class="modal-foot"><button type="button" class="btn btn-outline" id="ttCancel">Hủy</button><button type="submit" class="btn btn-primary" id="ttSave">Lưu</button></div>
     </form>`;
   openModal(isEdit ? 'Sửa tỉnh/thành phố' : 'Tỉnh/thành phố mới', bodyHtml, (el) => {
     el.querySelector('#ttCancel').onclick = closeModal;
@@ -1406,14 +1407,26 @@ function openTinhThanhForm(rec) {
       e.preventDefault();
       const data = Object.fromEntries(new FormData(e.target).entries());
       data.TenTinh = data.TenTinh.trim();
+      const saveBtn = el.querySelector('#ttSave');
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Đang lưu…';
       try {
-        if (isEdit) await apiPost('update', 'TinhThanh', data, data.TenTinh);
+        if (isEdit && data.TenTinh !== originalTenTinh) {
+          await apiPost('renameProvinceName', 'TinhThanh', data, originalTenTinh);
+          DB.KhachHang.forEach(k => {
+            if (String(k.DiaChiTinhTP || '').trim() === originalTenTinh) k.DiaChiTinhTP = data.TenTinh;
+          });
+        } else if (isEdit) await apiPost('update', 'TinhThanh', data, originalTenTinh);
         else await apiPost('create', 'TinhThanh', data);
         toast('Đã lưu ' + data.TenTinh);
         closeModal();
         await reloadSheet('TinhThanh');
         renderTinhThanh();
-      } catch (err) { toast(err.message, true); }
+      } catch (err) {
+        toast(err.message, true);
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Lưu';
+      }
     };
   });
 }
