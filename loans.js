@@ -69,6 +69,23 @@ function loanCustomerId(loan) {
   return linked ? String(linked.MaKH).trim() : '';
 }
 
+let loanHistoryLoadPromise = null;
+
+async function ensureLoanHistoryData() {
+  const missing = ['HoSo','TTHC','NhomNghiepVu'].filter(s => !LOADED_SHEETS.has(s));
+  if (!missing.length) return;
+  if (loanHistoryLoadPromise) return loanHistoryLoadPromise;
+  loanHistoryLoadPromise = (async () => {
+    const bundle = await apiGet('batchList', { sheets: missing.join(',') });
+    missing.forEach(sheet => {
+      DB[sheet] = Array.isArray(bundle[sheet]) ? bundle[sheet] : [];
+      LOADED_SHEETS.add(sheet);
+    });
+    normalizeIds();
+  })().finally(() => { loanHistoryLoadPromise = null; });
+  return loanHistoryLoadPromise;
+}
+
 function loanHistory(maKV) {
   const master = DB.Khoanvay.find(r => r['MÃ SỐ KV'] === maKV);
   const items = DB.HoSo.filter(h => String(h.MaKhoanVay || '').trim() === maKV && isLoanProcedure(h.MaTTHC))
@@ -158,9 +175,20 @@ function renderKhoanVay() {
   document.getElementById('loanPaid').onchange=draw;
   document.getElementById('loanGuarantee').onchange=draw;
   draw();
+  // Không chặn bảng chính trong lúc tải hơn 15.000 hồ sơ lịch sử.
+  if (!LOADED_SHEETS.has('HoSo')) {
+    ensureLoanHistoryData().then(() => {
+      if ((location.hash || '#hoso') === '#khoanvay') renderKhoanVay();
+    }).catch(err => toast('Chưa tải được lịch sử khoản vay: ' + err.message, true));
+  }
 }
 
-function showLoanHistory(maKV) {
+async function showLoanHistory(maKV) {
+  if (!LOADED_SHEETS.has('HoSo')) {
+    openModal('Đang tải lịch sử khoản vay', '<div class="empty-state"><h3>Đang tải dữ liệu lịch sử…</h3><p>Danh sách khoản vay vẫn sử dụng được trong lúc chờ.</p></div>');
+    try { await ensureLoanHistoryData(); }
+    catch (err) { toast(err.message, true); closeModal(); return; }
+  }
   const master=DB.Khoanvay.find(r=>r['MÃ SỐ KV']===maKV), hist=loanHistory(maKV);
   const maKH=loanCustomerId(master), kh=master ? DB.KhachHang.find(k=>k.MaKH===maKH) : null;
   openModal(`Lịch sử khoản vay ${maKV}`, `<div class="loan-summary"><div><span>Doanh nghiệp</span><b>${esc(kh?kh.TenKhachHang:'—')}</b><small class="mono">${esc(maKH)}</small></div><div><span>Khoản vay / Dư nợ</span><b>${esc(fmtNum(master&&master['KIM NGẠCH VAY']))} / ${esc(fmtNum(master&&master['DƯ NỢ']))} ${esc(master&&master['ĐỒNG TIỀN'])}</b><small>${loanIsPaid(master)?'Đã trả hết nợ':'Chưa hết nợ'} · ${loanHasGovernmentGuarantee(master)?'Có CP bảo lãnh':'Không CP bảo lãnh'} · ${hist.length} văn bản/hồ sơ liên quan</small></div></div>

@@ -28,7 +28,8 @@ const ROUTE_SHEETS = {
   phuongxa:['PhuongXa','ChuyenVien'],
   quocgia:['QG'],
   tknton:['KhachHang','QG','TKNHTONN','BCMoTKnTONN','TyGia','TinhThanh','ChuyenVien'],
-  khoanvay:['KhachHang','Khoanvay','HoSo','TTHC','NhomNghiepVu'],
+  // Hiện bảng khoản vay trước; dữ liệu lịch sử hồ sơ lớn được tải nền sau.
+  khoanvay:['KhachHang','Khoanvay'],
   chovay:['KhachHang','ChoVay','HoSo','TTHC','NhomNghiepVu'],
   dtrnnn:['KhachHang','QG','DTRNNN','DTRNNN_NDT','HoSo','TTHC','NhomNghiepVu'],
   campuchia:['KhachHang','Campuchia','ChuyenVien'],
@@ -639,7 +640,7 @@ function openHoSoForm(rec, afterSave, forceNew = false) {
         <div class="field"><label>Khách hàng</label>
           <input name="MaKH" id="fMaKH" list="hsKhOptions" value="${rec.MaKH ? esc(rec.MaKH + ' — ' + khName(rec.MaKH)) : ''}" autocomplete="off" placeholder="Gõ mã hoặc tên khách hàng" required /><datalist id="hsKhOptions">${khOptions}</datalist>
           <span class="hint" id="khHint"></span></div>
-        <div class="field"><label>Thủ tục hành chính</label>
+        <div class="field span-2"><label>Thủ tục hành chính</label>
           <input name="MaTTHC" id="fMaTTHC" list="hsTthcOptions" value="${rec.MaTTHC ? esc(rec.MaTTHC + ' — ' + tthcName(rec.MaTTHC)) : ''}" autocomplete="off" placeholder="Gõ mã hoặc tên TTHC" required /><datalist id="hsTthcOptions">${tthcOptions}</datalist></div>
 
         <div class="field"><label>Ngày tiếp nhận hồ sơ</label>

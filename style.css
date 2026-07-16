@@ -293,6 +293,7 @@ fieldset.subsection legend{
   box-sizing:border-box; max-height:calc(100vh - 48px); overflow-x:hidden; overflow-y:auto;
 }
 .modal:has(#tkntForm){max-width:900px}
+.modal:has(#hsForm){max-width:1000px}
 .modal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
 .modal-head h2{ font-family:'Space Grotesk', sans-serif; font-size:19px; margin:0; }
 .modal-foot{ display:flex; justify-content:flex-end; gap:10px; margin-top:22px; padding-top:18px; border-top:1px solid var(--line); }
