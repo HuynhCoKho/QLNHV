@@ -5,7 +5,7 @@
 
 const DB = { KhachHang: [], LoaiHinhKhachHang: [], ChuyenVien: [], TTHC: [], TyGia: [], HoSo: [], Khoanvay: [], ChoVay: [], DTRNNN: [], DTRNNN_NDT: [], Campuchia: [], VPHC: [], NhomNghiepVu: [], TinhThanh: [], PhuongXa: [], QG: [], TKNHTONN: [], BCMoTKnTONN: [] };
 
-const TRANGTHAI_HOSO = ['Chưa tiếp nhận', 'Đã tiếp nhận', 'Bổ sung hồ sơ', 'Đang xử lý', 'Đã xử lý'];
+const TRANGTHAI_HOSO = ['Chưa tiếp nhận', 'Đã tiếp nhận', 'Bổ sung hồ sơ', 'Đang xử lý', 'Trả hồ sơ', 'Đã xử lý'];
 const LOAI_TTHC_OPTIONS = ['Trực tuyến toàn trình', 'Thường'];
 const TRANGTHAI_TTHC_OPTIONS = ['Đang hiệu lực', 'Hủy', 'Chưa hiệu lực'];
 const LOAI_DAC_BIET_OPTIONS = [
@@ -614,7 +614,7 @@ const HOSO_DETAIL_FIELDS = [
 function statusBadge(t) {
   const map = {
     'Chưa tiếp nhận': 'badge-neutral', 'Đã tiếp nhận': 'badge-sage', 'Bổ sung hồ sơ': 'badge-amber',
-    'Đang xử lý': 'badge-amber', 'Đã xử lý': 'badge-seal'
+    'Đang xử lý': 'badge-amber', 'Trả hồ sơ': 'badge-danger', 'Đã xử lý': 'badge-seal'
   };
   return `<span class="badge ${map[t] || 'badge-neutral'}">${esc(t || '—')}</span>`;
 }
