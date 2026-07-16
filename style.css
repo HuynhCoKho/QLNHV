@@ -334,6 +334,7 @@ tbody tr[data-view]{ cursor:pointer; }
 .toolbar{ display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
 .search-input{ min-width:240px; }
 .select-filter{ min-width:170px; }
+.filter-date-label{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-soft);white-space:nowrap}.filter-date-label .select-filter{min-width:145px}
 .tknt-group-label{display:flex;align-items:center;gap:18px;flex-wrap:wrap}.tknt-group-label b{font-size:14px}.tknt-group-label span{margin:0;color:var(--ink-soft);font-size:12px}.tknt-group-count{min-width:24px;padding:2px 8px;border-radius:999px;background:#fff;text-align:center}
 .report-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}.report-summary>div{padding:12px;border:1px solid var(--line);border-radius:8px;background:#F7F5EF;display:flex;justify-content:space-between}.report-summary span{color:var(--ink-soft)}.province-report{max-height:58vh}.province-report th:first-child,.province-report td:first-child{width:45px}.province-report th:last-child,.province-report td:last-child{width:65px}.report-country{display:inline-block;margin:2px 5px 2px 0;padding:3px 7px;border-radius:999px;background:var(--sage-bg);color:var(--sage);font-size:11px}
 .report-country-row td{background:#E7F1ED;border-top:2px solid var(--sage);color:var(--navy)}.report-country-row td:nth-child(2){display:flex;justify-content:space-between;gap:12px}.report-country-row span{font-size:11px;color:var(--ink-soft)}.report-account{display:block;margin:2px 0}

@@ -232,16 +232,21 @@ async function ensureRouteData(routeName,token) {
   const missing=sheets.filter(sheet=>!LOADED_SHEETS.has(sheet));
   if(!missing.length)return;
   const title=document.getElementById('pageTitle');
-  let completed=0;
-  // Các bảng phụ tải song song với bảng chính; không còn 5 lượt tuần tự trước
-  // khi bắt đầu tải HoSo như cơ chế cũ.
-  await Promise.all(missing.map(async sheet=>{
-    try{DB[sheet]=await apiGet('list',{sheet});}
-    catch(err){if(sheet==='VPHC')DB.VPHC=[];else throw err;}
-    LOADED_SHEETS.add(sheet);
-    completed++;
-    if(token===routeLoadToken&&title)title.textContent=`Đang tải dữ liệu ${completed}/${missing.length}…`;
-  }));
+  if(token===routeLoadToken&&title)title.textContent='Đang tải dữ liệu cần thiết…';
+  try {
+    // Một request duy nhất để Apps Script chỉ mở Google Sheet một lần.
+    const params={sheets:missing.join(',')};
+    if(routeName==='hoso'&&missing.includes('HoSo'))params.lite='HoSo';
+    const bundle=await apiGet('batchList',params);
+    missing.forEach(sheet=>{DB[sheet]=Array.isArray(bundle[sheet])?bundle[sheet]:[];LOADED_SHEETS.add(sheet)});
+  } catch (batchError) {
+    // Tương thích với deployment cũ trong thời gian Apps Script chưa cập nhật.
+    await Promise.all(missing.map(async sheet=>{
+      try{DB[sheet]=await apiGet('list',{sheet});}
+      catch(err){if(sheet==='VPHC')DB.VPHC=[];else throw err;}
+      LOADED_SHEETS.add(sheet);
+    }));
+  }
   normalizeIds();
 }
 
@@ -402,6 +407,11 @@ async function route() {
     const retry=document.getElementById('retryRoute');if(retry)retry.onclick=route;
   }
 }
+
+// Lấy phần mã từ ô tra cứu dạng "MÃ — Tên"; vẫn chấp nhận người dùng gõ mã trực tiếp.
+function lookupCode(value) {
+  return String(value || '').split(' — ')[0].trim();
+}
 window.addEventListener('hashchange',()=>route());
 
 // ---------------- Modal helper ----------------
@@ -489,6 +499,10 @@ function renderHoSo() {
     ${statsBarHtml(DB.HoSo, 'TrangThai')}
     <div class="toolbar">
       <input type="text" class="search-input" id="hsSearch" placeholder="Tìm theo mã hồ sơ, tên khách hàng…" />
+      <label class="filter-date-label">Từ ngày <input type="date" class="select-filter" id="hsFromDate" title="Từ ngày tiếp nhận" /></label>
+      <label class="filter-date-label">Đến ngày <input type="date" class="select-filter" id="hsToDate" title="Đến ngày tiếp nhận" /></label>
+      <input class="select-filter" id="hsSpecialist" list="hsSpecialistList" placeholder="Lọc theo chuyên viên" />
+      <datalist id="hsSpecialistList">${DB.ChuyenVien.map(c => `<option value="${esc(c.MaCV)} — ${esc(c.HoTen || '')}"></option>`).join('')}</datalist>
       <select class="select-filter" id="hsFilterTrangThai">
         <option value="">— Tất cả trạng thái —</option>
         ${TRANGTHAI_HOSO.map(t => `<option value="${t}">${t}</option>`).join('')}
@@ -508,10 +522,17 @@ function renderHoSo() {
   const draw = () => {
     const q = (document.getElementById('hsSearch').value || '').toLowerCase();
     const ft = document.getElementById('hsFilterTrangThai').value;
+    const fromDate = document.getElementById('hsFromDate').value;
+    const toDate = document.getElementById('hsToDate').value;
+    const specialist = lookupCode(document.getElementById('hsSpecialist').value);
     const filtered = DB.HoSo.filter(r => {
       const matchQ = !q || r.MaHoSo.toLowerCase().includes(q) || khName(r.MaKH).toLowerCase().includes(q);
       const matchT = !ft || r.TrangThai === ft;
-      return matchQ && matchT;
+      const received = toISODate(r.NgayTiepNhan);
+      const matchFrom = !fromDate || (received && received >= fromDate);
+      const matchTo = !toDate || (received && received <= toDate);
+      const matchSpecialist = !specialist || String(r.MaCV || '') === specialist;
+      return matchQ && matchT && matchFrom && matchTo && matchSpecialist;
     });
     // Ho so moi nhat (theo ngay tiep nhan) hien len tren
     filtered.sort((a, b) => parseVNDateSort(b.NgayTiepNhan) - parseVNDateSort(a.NgayTiepNhan));
@@ -540,15 +561,28 @@ function renderHoSo() {
           <button class="btn btn-danger btn-sm" data-del="${esc(r.MaHoSo)}">Xóa</button>
         </td>
       </tr>`).join('');
-    body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openHoSoForm(DB.HoSo.find(x => x.MaHoSo === b.dataset.edit)));
+    body.querySelectorAll('[data-edit]').forEach(b => b.onclick = async () => {
+      b.disabled=true;b.textContent='Đang mở…';
+      try{openHoSoForm(await apiGet('get',{sheet:'HoSo',id:b.dataset.edit}));}
+      catch(err){showToast(err.message,'error');b.disabled=false;b.textContent='Sửa';}
+    });
     body.querySelectorAll('[data-del]').forEach(b => b.onclick = () => deleteRecord('HoSo', b.dataset.del, 'MaHoSo', renderHoSo));
-    wireRowDetail(body, rows, 'MaHoSo', HOSO_DETAIL_FIELDS, 'Hồ sơ');
+    body.querySelectorAll('tr[data-view]').forEach(tr=>tr.onclick=async(e)=>{
+      if(e.target.closest('button'))return;
+      tr.style.opacity='.6';
+      try{const rec=await apiGet('get',{sheet:'HoSo',id:tr.dataset.view});showRecordDetail('Hồ sơ '+rec.MaHoSo,rec,HOSO_DETAIL_FIELDS);}
+      catch(err){showToast(err.message,'error');}
+      finally{tr.style.opacity='';}
+    });
 
     document.getElementById('hsPager').innerHTML = pagerHtml(page, totalPages, filtered.length, 'hs');
     wirePager('hs', () => page, (p) => { page = p; }, totalPages, draw);
   };
   document.getElementById('hsSearch').oninput = () => { page = 1; draw(); };
   document.getElementById('hsFilterTrangThai').onchange = () => { page = 1; draw(); };
+  document.getElementById('hsFromDate').onchange = () => { page = 1; draw(); };
+  document.getElementById('hsToDate').onchange = () => { page = 1; draw(); };
+  document.getElementById('hsSpecialist').oninput = () => { page = 1; draw(); };
   draw();
 }
 
@@ -584,13 +618,13 @@ function statusBadge(t) {
   return `<span class="badge ${map[t] || 'badge-neutral'}">${esc(t || '—')}</span>`;
 }
 
-function openHoSoForm(rec) {
-  const isEdit = !!rec;
+function openHoSoForm(rec, afterSave, forceNew = false) {
+  const isEdit = !!rec && !forceNew;
   rec = rec || { TrangThai: 'Chưa tiếp nhận', MaCV: 'CK', HetNo: false };
 
-  const khOptions = DB.KhachHang.map(k => `<option value="${esc(k.MaKH)}" ${rec.MaKH === k.MaKH ? 'selected' : ''}>${esc(k.MaKH)} — ${esc(k.TenKhachHang)}</option>`).join('');
-  const tthcOptions = DB.TTHC.map(t => `<option value="${esc(t.MaTTHC)}" ${rec.MaTTHC === t.MaTTHC ? 'selected' : ''}>${esc(t.MaTTHC)} — ${esc(t.TenTTHC)}</option>`).join('');
-  const cvOptions = DB.ChuyenVien.map(c => `<option value="${esc(c.MaCV)}" ${(rec.MaCV || 'CK') === c.MaCV ? 'selected' : ''}>${esc(c.MaCV)} — ${esc(c.HoTen || '')}</option>`).join('');
+  const khOptions = DB.KhachHang.map(k => `<option value="${esc(k.MaKH)} — ${esc(k.TenKhachHang)}"></option>`).join('');
+  const tthcOptions = DB.TTHC.map(t => `<option value="${esc(t.MaTTHC)} — ${esc(t.TenTTHC)}"></option>`).join('');
+  const cvOptions = DB.ChuyenVien.map(c => `<option value="${esc(c.MaCV)} — ${esc(c.HoTen || '')}"></option>`).join('');
   const trangThaiOptions = TRANGTHAI_HOSO.map(t => `<option value="${t}" ${rec.TrangThai === t ? 'selected' : ''}>${t}</option>`).join('');
   const nteOptions = DB.TyGia.map(r => `<option value="${esc(r.MaNgoaiTe)}">${esc(r.MaNgoaiTe)}</option>`).join('');
 
@@ -600,13 +634,13 @@ function openHoSoForm(rec) {
         <div class="field mono"><label>Mã số hồ sơ (Cổng DVC)</label>
           <input type="text" name="MaHoSo" value="${esc(rec.MaHoSo || '')}" ${isEdit ? 'readonly' : ''} required /></div>
         <div class="field"><label>Chuyên viên tiếp nhận</label>
-          <select name="MaCV">${cvOptions}</select></div>
+          <input name="MaCV" list="hsCvOptions" value="${esc((rec.MaCV || 'CK') + ' — ' + (cvName(rec.MaCV || 'CK') || ''))}" autocomplete="off" required /><datalist id="hsCvOptions">${cvOptions}</datalist></div>
 
         <div class="field"><label>Khách hàng</label>
-          <select name="MaKH" id="fMaKH" required><option value="">— chọn khách hàng —</option>${khOptions}</select>
+          <input name="MaKH" id="fMaKH" list="hsKhOptions" value="${rec.MaKH ? esc(rec.MaKH + ' — ' + khName(rec.MaKH)) : ''}" autocomplete="off" placeholder="Gõ mã hoặc tên khách hàng" required /><datalist id="hsKhOptions">${khOptions}</datalist>
           <span class="hint" id="khHint"></span></div>
         <div class="field"><label>Thủ tục hành chính</label>
-          <select name="MaTTHC" id="fMaTTHC" required><option value="">— chọn TTHC —</option>${tthcOptions}</select></div>
+          <input name="MaTTHC" id="fMaTTHC" list="hsTthcOptions" value="${rec.MaTTHC ? esc(rec.MaTTHC + ' — ' + tthcName(rec.MaTTHC)) : ''}" autocomplete="off" placeholder="Gõ mã hoặc tên TTHC" required /><datalist id="hsTthcOptions">${tthcOptions}</datalist></div>
 
         <div class="field"><label>Ngày tiếp nhận hồ sơ</label>
           <input type="date" name="NgayTiepNhan" value="${toISODate(rec.NgayTiepNhan)}" required /></div>
@@ -677,7 +711,7 @@ function openHoSoForm(rec) {
 
     const updateVisibility = () => {
       const trangThai = el.querySelector('#fTrangThai').value;
-      const tthc = tthcRow(el.querySelector('#fMaTTHC').value);
+      const tthc = tthcRow(lookupCode(el.querySelector('#fMaTTHC').value));
       const isDone = trangThai === 'Đã xử lý';
       const dacBiet = tthc ? isSpecialGroup(tthc.NhomNghiepVu) : false;
       el.querySelector('#fsKetQua').style.display = isDone ? '' : 'none';
@@ -696,9 +730,9 @@ function openHoSoForm(rec) {
       const usdChoVay = toUSD(amtChoVay, codeChoVay);
       el.querySelector('#fSoTienChoVayUSD').value = usdChoVay === null ? '' : '≈ $' + fmtNum(usdChoVay);
     };
-    el.querySelector('#fMaKH').onchange = (e) => { el.querySelector('#khHint').textContent = khName(e.target.value); };
+    el.querySelector('#fMaKH').oninput = (e) => { el.querySelector('#khHint').textContent = khName(lookupCode(e.target.value)); };
     if (rec.MaKH) el.querySelector('#khHint').textContent = khName(rec.MaKH);
-    el.querySelector('#fMaTTHC').onchange = updateVisibility;
+    el.querySelector('#fMaTTHC').oninput = updateVisibility;
     el.querySelector('#fTrangThai').onchange = updateVisibility;
     el.querySelector('#fSoTienVay').oninput = updateUSD;
     el.querySelector('#fNguyenTeVay').onchange = updateUSD;
@@ -726,11 +760,11 @@ function openHoSoForm(rec) {
         submitBtn.textContent = 'Đang lưu…';
         const data = {
           MaHoSo: fd.get('MaHoSo').trim(),
-          MaKH: fd.get('MaKH'),
-          MaTTHC: fd.get('MaTTHC'),
+          MaKH: lookupCode(fd.get('MaKH')),
+          MaTTHC: lookupCode(fd.get('MaTTHC')),
           NgayTiepNhan: toVNDate(fd.get('NgayTiepNhan')),
           NgayHenTra: toVNDate(fd.get('NgayHenTra')),
-          MaCV: fd.get('MaCV'),
+          MaCV: lookupCode(fd.get('MaCV')),
           TrangThai: fd.get('TrangThai'),
           SoVanBan: fd.get('SoVanBan') || '',
           NgayVanBan: toVNDate(fd.get('NgayVanBan')),
@@ -765,7 +799,7 @@ function openHoSoForm(rec) {
         await syncInvestmentFromCase(data);
         toast('Đã lưu hồ sơ ' + data.MaHoSo);
         closeModal();
-        renderHoSo();
+        if (typeof afterSave === 'function') afterSave(data); else renderHoSo();
       } catch (err) {
         toast(err.message, true);
         submitBtn.disabled = false;

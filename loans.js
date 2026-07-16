@@ -71,20 +71,23 @@ function loanCustomerId(loan) {
 
 function loanHistory(maKV) {
   const master = DB.Khoanvay.find(r => r['MÃ SỐ KV'] === maKV);
-  const items = [];
-  if (master && (master['SỐ VBXN'] || master['NGÀY VBXN'] || master.FILE)) {
+  const items = DB.HoSo.filter(h => String(h.MaKhoanVay || '').trim() === maKV && isLoanProcedure(h.MaTTHC))
+    .map(h => ({
+      kind: 'hoso', source: 'Hồ sơ TTHC', soVB: h.SoVanBan, ngayVB: h.NgayVanBan, maHS: h.MaHoSo,
+      tenTTHC: tthcName(h.MaTTHC), giaTri: h.SoTienVayNguyenTe, tien: h.NguyenTeVay,
+      cv: cvName(h.MaCV) || h.MaCV, file: h.FileVanBan
+    }));
+  const sameDocument = (a, soVB, ngayVB) => String(a.soVB || '').trim().toLowerCase() === String(soVB || '').trim().toLowerCase()
+    && toISODate(a.ngayVB) === toISODate(ngayVB);
+  // Hồ sơ đã đồng bộ sang dòng khoản vay không phải là một lịch sử nhập tay mới.
+  if (master && (master['SỐ VBXN'] || master['NGÀY VBXN'] || master.FILE)
+      && !items.some(x => sameDocument(x, master['SỐ VBXN'], master['NGÀY VBXN']))) {
     items.push({
-      source: 'Nhập thủ công', soVB: master['SỐ VBXN'], ngayVB: master['NGÀY VBXN'],
+      kind: 'manual', source: 'Nhập thủ công', soVB: master['SỐ VBXN'], ngayVB: master['NGÀY VBXN'],
       maHS: '', tenTTHC: 'Xác nhận đăng ký ban đầu', giaTri: master['KIM NGẠCH VAY'],
       tien: master['ĐỒNG TIỀN'], cv: '', file: master.FILE
     });
   }
-  DB.HoSo.filter(h => String(h.MaKhoanVay || '').trim() === maKV && isLoanProcedure(h.MaTTHC))
-    .forEach(h => items.push({
-      source: 'Hồ sơ TTHC', soVB: h.SoVanBan, ngayVB: h.NgayVanBan, maHS: h.MaHoSo,
-      tenTTHC: tthcName(h.MaTTHC), giaTri: h.SoTienVayNguyenTe, tien: h.NguyenTeVay,
-      cv: cvName(h.MaCV) || h.MaCV, file: h.FileVanBan
-    }));
   return items.sort((a,b) => parseVNDateSort(b.ngayVB) - parseVNDateSort(a.ngayVB));
 }
 
@@ -161,18 +164,42 @@ function showLoanHistory(maKV) {
   const master=DB.Khoanvay.find(r=>r['MÃ SỐ KV']===maKV), hist=loanHistory(maKV);
   const maKH=loanCustomerId(master), kh=master ? DB.KhachHang.find(k=>k.MaKH===maKH) : null;
   openModal(`Lịch sử khoản vay ${maKV}`, `<div class="loan-summary"><div><span>Doanh nghiệp</span><b>${esc(kh?kh.TenKhachHang:'—')}</b><small class="mono">${esc(maKH)}</small></div><div><span>Khoản vay / Dư nợ</span><b>${esc(fmtNum(master&&master['KIM NGẠCH VAY']))} / ${esc(fmtNum(master&&master['DƯ NỢ']))} ${esc(master&&master['ĐỒNG TIỀN'])}</b><small>${loanIsPaid(master)?'Đã trả hết nợ':'Chưa hết nợ'} · ${loanHasGovernmentGuarantee(master)?'Có CP bảo lãnh':'Không CP bảo lãnh'} · ${hist.length} văn bản/hồ sơ liên quan</small></div></div>
-    <div class="table-wrap"><table><thead><tr><th>Số văn bản</th><th>Ngày VB</th><th>Hồ sơ TTHC</th><th>Giá trị</th><th>Chuyên viên</th><th>Loại</th><th>File</th></tr></thead><tbody>
-    ${hist.length?hist.map(x=>`<tr><td><b>${esc(x.soVB||'—')}</b></td><td class="mono">${esc(fmtDateVN(x.ngayVB))}</td><td>${esc(x.maHS||'—')}<div class="muted">${esc(x.tenTTHC)}</div></td><td class="num">${esc(fmtNum(x.giaTri))} ${esc(x.tien)}</td><td>${esc(x.cv||'—')}</td><td>${esc(x.source)}</td><td>${x.file?`<a class="btn btn-outline btn-sm" href="${esc(x.file)}" target="_blank" rel="noopener">Mở file</a>`:'—'}</td></tr>`).join(''):`<tr><td colspan="7" class="muted">Chưa có văn bản lịch sử.</td></tr>`}
-    </tbody></table></div><div class="modal-foot"><button class="btn btn-outline" id="loanClose">Đóng</button></div>`, el=>el.querySelector('#loanClose').onclick=closeModal);
+    <div style="text-align:right;margin-bottom:10px"><button class="btn btn-primary btn-sm" id="addLoanHistory">+ Thêm lịch sử</button></div>
+    <div class="table-wrap"><table><thead><tr><th>Số văn bản</th><th>Ngày VB</th><th>Hồ sơ TTHC</th><th>Giá trị</th><th>Chuyên viên</th><th>Loại</th><th>File</th><th></th></tr></thead><tbody>
+    ${hist.length?hist.map((x,i)=>`<tr><td><b>${esc(x.soVB||'—')}</b></td><td class="mono">${esc(fmtDateVN(x.ngayVB))}</td><td>${esc(x.maHS||'—')}<div class="muted">${esc(x.tenTTHC)}</div></td><td class="num">${esc(fmtNum(x.giaTri))} ${esc(x.tien)}</td><td>${esc(x.cv||'—')}</td><td>${esc(x.source)}</td><td>${x.file?`<a class="btn btn-outline btn-sm" href="${esc(x.file)}" target="_blank" rel="noopener">Mở file</a>`:'—'}</td><td class="cell-actions"><button class="btn btn-outline btn-sm" data-hist-edit="${i}">Sửa</button><button class="btn btn-danger btn-sm" data-hist-del="${i}">Xóa</button></td></tr>`).join(''):`<tr><td colspan="8" class="muted">Chưa có văn bản lịch sử.</td></tr>`}
+    </tbody></table></div><div class="modal-foot"><button class="btn btn-outline" id="loanClose">Đóng</button></div>`, el=>{
+      el.querySelector('#loanClose').onclick=closeModal;
+      el.querySelector('#addLoanHistory').onclick=()=>openHoSoForm({MaKH,MaKhoanVay:maKV,TrangThai:'Đã xử lý',MaCV:'CK',NguyenTeVay:master&&master['ĐỒNG TIỀN'],SoTienVayNguyenTe:master&&master['KIM NGẠCH VAY']},()=>showLoanHistory(maKV),true);
+      el.querySelectorAll('[data-hist-edit]').forEach(b=>b.onclick=async()=>{
+        const x=hist[Number(b.dataset.histEdit)];
+        if(x.kind==='manual') return openLoanForm(master);
+        b.disabled=true;b.textContent='Đang mở…';
+        try{openHoSoForm(await apiGet('get',{sheet:'HoSo',id:x.maHS}),()=>showLoanHistory(maKV));}catch(err){toast(err.message,true);}
+      });
+      el.querySelectorAll('[data-hist-del]').forEach(b=>b.onclick=async()=>{
+        const x=hist[Number(b.dataset.histDel)];
+        if(!confirm(x.kind==='manual'?'Xóa thông tin văn bản nhập thủ công này?':'Xóa hồ sơ TTHC '+x.maHS+' khỏi lịch sử?'))return;
+        b.disabled=true;b.textContent='Đang xóa…';
+        try{
+          if(x.kind==='manual'){
+            const data={...master,'SỐ VBXN':'','NGÀY VBXN':'',FILE:''};
+            await apiPost('update','Khoanvay',data,maKV);Object.assign(master,data);
+          }else{
+            await apiPost('delete','HoSo',{},x.maHS);DB.HoSo=DB.HoSo.filter(h=>String(h.MaHoSo)!==String(x.maHS));
+          }
+          showLoanHistory(maKV);toast('Đã xóa dòng lịch sử');
+        }catch(err){toast(err.message,true);b.disabled=false;b.textContent='Xóa';}
+      });
+    });
 }
 
 function openLoanForm(record) {
   const edit=!!record; record=record||{};
-  const customerOptions=DB.KhachHang.slice().sort((a,b)=>(a.TenKhachHang||'').localeCompare(b.TenKhachHang||'','vi')).map(k=>`<option value="${esc(k.MaKH)}" ${k.MaKH===record['MÃ KH']?'selected':''}>${esc(k.MaKH)} — ${esc(k.TenKhachHang)}</option>`).join('');
+  const customerOptions=DB.KhachHang.slice().sort((a,b)=>(a.TenKhachHang||'').localeCompare(b.TenKhachHang||'','vi')).map(k=>`<option value="${esc(k.MaKH)} — ${esc(k.TenKhachHang)}"></option>`).join('');
   const currencies=[...new Set(['USD','EUR','JPY','SGD','AUD','CAD','GBP','CHF','CNY',...DB.TyGia.map(x=>x.MaNgoaiTe)])];
   openModal(edit?'Sửa khoản vay':'Thêm khoản vay', `<form id="loanForm"><div class="form-grid">
     <div class="field mono"><label>Mã số khoản vay *</label><input name="MÃ SỐ KV" value="${esc(record['MÃ SỐ KV'])}" ${edit?'readonly':''} required></div>
-    <div class="field"><label>Khách hàng *</label><select name="MÃ KH" required><option value="">— Chọn khách hàng —</option>${customerOptions}</select></div>
+    <div class="field"><label>Khách hàng *</label><input name="MÃ KH" list="loanCustomerOptions" value="${record['MÃ KH']?esc(record['MÃ KH']+' — '+khName(record['MÃ KH'])):''}" placeholder="Gõ mã hoặc tên khách hàng" autocomplete="off" required><datalist id="loanCustomerOptions">${customerOptions}</datalist></div>
     <div class="field"><label>Số văn bản xác nhận</label><input name="SỐ VBXN" value="${esc(record['SỐ VBXN'])}"></div>
     <div class="field"><label>Ngày văn bản xác nhận</label><input type="date" name="NGÀY VBXN" value="${toISODate(record['NGÀY VBXN'])}"></div>
     <div class="field"><label>Kim ngạch vay</label><input type="number" step="any" min="0" name="KIM NGẠCH VAY" value="${esc(record['KIM NGẠCH VAY'])}"></div>
@@ -190,6 +217,7 @@ function openLoanForm(record) {
         try {
           const fd=new FormData(e.target),data={};
           LOAN_FIELDS.forEach(k=>data[k]=fd.get(k)||'');
+          data['MÃ KH']=lookupCode(data['MÃ KH']);
           data['NGÀY VBXN']=toVNDate(fd.get('NGÀY VBXN'));
           data['KIM NGẠCH VAY']=parseNum(fd.get('KIM NGẠCH VAY'));
           data['DƯ NỢ']=parseNum(fd.get('DƯ NỢ'));
