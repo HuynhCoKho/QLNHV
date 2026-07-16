@@ -1625,6 +1625,67 @@ function wireFlexibleNumberInputs() {
 }
 new MutationObserver(wireFlexibleNumberInputs).observe(document.getElementById('modalRoot'), {childList:true, subtree:true});
 
+function wireSearchableDatalists(root = document) {
+  root.querySelectorAll('input[list]').forEach(input => {
+    if (input.dataset.customDatalist === '1') return;
+    const listId = input.getAttribute('list');
+    const datalist = document.getElementById(listId);
+    if (!datalist) return;
+
+    input.dataset.customDatalist = '1';
+    input.removeAttribute('list');
+    const wrap = document.createElement('div');
+    wrap.className = 'autocomplete-wrap';
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+    const menu = document.createElement('div');
+    menu.className = 'autocomplete-menu generic-autocomplete-menu';
+    menu.hidden = true;
+    wrap.appendChild(menu);
+
+    const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase();
+    const optionValues = () => Array.from(datalist.options).map(option => option.value || option.label || '').filter(Boolean);
+    let selecting = false;
+    const draw = () => {
+      if (selecting) return;
+      const query = normalize(input.value.trim());
+      const matches = optionValues().filter(value => !query || normalize(value).includes(query)).slice(0, 60);
+      menu.classList.toggle('align-right', input.getBoundingClientRect().left > window.innerWidth / 2);
+      menu.innerHTML = matches.length
+        ? matches.map(value => {
+            const parts = value.split(' — ');
+            const code = parts.shift() || '';
+            const label = parts.join(' — ');
+            return `<button type="button" class="autocomplete-option" data-value="${esc(value)}"><b>${esc(code)}</b><span>${esc(label || code)}</span></button>`;
+          }).join('')
+        : '<div class="autocomplete-empty">Không tìm thấy dữ liệu phù hợp.</div>';
+      menu.hidden = false;
+    };
+
+    input.addEventListener('focus', draw);
+    input.addEventListener('input', draw);
+    input.addEventListener('blur', () => setTimeout(() => { menu.hidden = true; }, 150));
+    input.addEventListener('keydown', event => {
+      if (event.key === 'Escape') menu.hidden = true;
+    });
+    menu.addEventListener('mousedown', event => event.preventDefault());
+    menu.addEventListener('click', event => {
+      const option = event.target.closest('[data-value]');
+      if (!option) return;
+      selecting = true;
+      input.value = option.dataset.value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      selecting = false;
+      menu.hidden = true;
+    });
+  });
+}
+wireSearchableDatalists();
+new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(node => {
+  if (node.nodeType === 1) wireSearchableDatalists(node);
+}))).observe(document.body, {childList:true, subtree:true});
+
 document.addEventListener('submit', event => {
   event.target.querySelectorAll?.('input[data-flex-number="1"]').forEach(input => {
     const value = input.dataset.grouped === '1' ? input.dataset.rawValue : input.value;

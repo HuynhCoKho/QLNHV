@@ -261,6 +261,8 @@ tbody tr:hover{ background:#FBFAF6; }
 .autocomplete-option b{font-family:'IBM Plex Mono',monospace;font-size:12px}
 .autocomplete-option span{line-height:1.4;overflow-wrap:anywhere}
 .autocomplete-empty{padding:12px;color:var(--ink-soft);font-size:13px}
+.generic-autocomplete-menu{width:min(760px,calc(100vw - 40px));right:auto}
+.generic-autocomplete-menu.align-right{left:auto;right:0}
 input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea{
   font-family:'Inter', sans-serif;
   font-size:14px;
