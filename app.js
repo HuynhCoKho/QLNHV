@@ -409,6 +409,23 @@ async function route() {
   }
 }
 
+// HoSo cu co the chua nhieu dong cung MaHoSo de luu cac van ban/khoan vay
+// lien quan. Danh sach nghiep vu phai xem day la MOT ho so, khong dem va hien
+// lap. Giu lai dong day du nhat de hien thi; du lieu goc van duoc bao toan cho
+// man hinh lich su khoan vay.
+function uniqueHoSoRecords(rows = DB.HoSo) {
+  const byId = new Map();
+  const completeness = r => Object.values(r || {}).reduce((n, v) =>
+    n + (v !== '' && v !== null && v !== undefined ? 1 : 0), 0);
+  (rows || []).forEach(r => {
+    const id = String(r.MaHoSo || '').trim().toLowerCase();
+    if (!id) return;
+    const current = byId.get(id);
+    if (!current || completeness(r) > completeness(current)) byId.set(id, r);
+  });
+  return Array.from(byId.values());
+}
+
 // Lấy phần mã từ ô tra cứu dạng "MÃ — Tên"; vẫn chấp nhận người dùng gõ mã trực tiếp.
 function lookupCode(value) {
   return String(value || '').split(' — ')[0].trim();
@@ -491,13 +508,14 @@ function wireRowDetail(bodyEl, records, idField, fieldDefs, titlePrefix) {
 // MODULE: HO SO TTHC
 // ============================================================
 function renderHoSo() {
+  const hoSoUnique = uniqueHoSoRecords();
   document.getElementById('topbarActions').innerHTML = `<button class="btn btn-outline" id="btnHoSoReport">Báo cáo giải quyết TTHC</button><button class="btn btn-primary" id="btnNewHoSo">+ Hồ sơ mới</button>`;
   document.getElementById('btnHoSoReport').onclick = () => openHoSoResolutionReportPrompt();
   document.getElementById('btnNewHoSo').onclick = () => openHoSoForm();
 
   const view = document.getElementById('view');
   view.innerHTML = `
-    ${statsBarHtml(DB.HoSo, 'TrangThai')}
+    ${statsBarHtml(hoSoUnique, 'TrangThai')}
     <div class="toolbar">
       <input type="text" class="search-input" id="hsSearch" placeholder="Tìm theo mã hồ sơ, tên khách hàng…" />
       <label class="filter-date-label">Từ ngày <input type="date" class="select-filter" id="hsFromDate" title="Từ ngày tiếp nhận" /></label>
@@ -526,7 +544,7 @@ function renderHoSo() {
     const fromDate = document.getElementById('hsFromDate').value;
     const toDate = document.getElementById('hsToDate').value;
     const specialist = lookupCode(document.getElementById('hsSpecialist').value);
-    const filtered = DB.HoSo.filter(r => {
+    const filtered = hoSoUnique.filter(r => {
       const matchQ = !q || r.MaHoSo.toLowerCase().includes(q) || khName(r.MaKH).toLowerCase().includes(q);
       const matchT = !ft || r.TrangThai === ft;
       const received = toISODate(r.NgayTiepNhan);
@@ -815,6 +833,9 @@ function openHoSoForm(rec, afterSave, forceNew = false) {
             && (!rec.MaKhoanVay || String(x.MaKhoanVay || '') === String(rec.MaKhoanVay)));
           if (idx !== -1) DB.HoSo[idx] = { ...DB.HoSo[idx], ...data, _id: data.MaHoSo };
         } else {
+          const duplicate = DB.HoSo.some(x =>
+            String(x.MaHoSo || '').trim().toLowerCase() === String(data.MaHoSo || '').trim().toLowerCase());
+          if (duplicate) throw new Error('Mã hồ sơ "' + data.MaHoSo + '" đã tồn tại. Mỗi mã hồ sơ chỉ được tạo một lần.');
           await apiPost('create', 'HoSo', data);
           DB.HoSo.push({ ...data, _id: data.MaHoSo });
         }
