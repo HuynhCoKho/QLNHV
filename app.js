@@ -55,8 +55,8 @@ async function apiGet(action, params = {}) {
   }
 }
 
-async function apiPost(action, sheet, data, id) {
-  const body = JSON.stringify({ action, sheet, data, id });
+async function apiPost(action, sheet, data, id, matchField, matchValue) {
+  const body = JSON.stringify({ action, sheet, data, id, matchField, matchValue });
   // Apps Script thỉnh thoảng đóng kết nối trước khi trình duyệt nhận phản hồi,
   // dù thao tác cập nhật vẫn có thể đã chạy xong. Với thao tác idempotent như
   // update, thử lại một lần để tránh báo "Failed to fetch" giả cho người dùng.
@@ -785,8 +785,9 @@ function openHoSoForm(rec, afterSave, forceNew = false) {
           GhiChu: fd.get('GhiChu') || ''
         };
         if (isEdit) {
-          await apiPost('update', 'HoSo', data, data.MaHoSo);
-          const idx = DB.HoSo.findIndex(x => String(x.MaHoSo) === String(data.MaHoSo));
+          await apiPost('update', 'HoSo', data, rec.MaHoSo, 'MaKhoanVay', rec.MaKhoanVay || '');
+          const idx = DB.HoSo.findIndex(x => String(x.MaHoSo) === String(rec.MaHoSo)
+            && (!rec.MaKhoanVay || String(x.MaKhoanVay || '') === String(rec.MaKhoanVay)));
           if (idx !== -1) DB.HoSo[idx] = { ...DB.HoSo[idx], ...data, _id: data.MaHoSo };
         } else {
           await apiPost('create', 'HoSo', data);

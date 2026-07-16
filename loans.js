@@ -73,7 +73,7 @@ function loanHistory(maKV) {
   const master = DB.Khoanvay.find(r => r['MÃ SỐ KV'] === maKV);
   const items = DB.HoSo.filter(h => String(h.MaKhoanVay || '').trim() === maKV && isLoanProcedure(h.MaTTHC))
     .map(h => ({
-      kind: 'hoso', source: 'Hồ sơ TTHC', soVB: h.SoVanBan, ngayVB: h.NgayVanBan, maHS: h.MaHoSo,
+      kind: 'hoso', source: 'Hồ sơ TTHC', soVB: h.SoVanBan, ngayVB: h.NgayVanBan, maHS: h.MaHoSo, maKV: h.MaKhoanVay,
       tenTTHC: tthcName(h.MaTTHC), giaTri: h.SoTienVayNguyenTe, tien: h.NguyenTeVay,
       cv: cvName(h.MaCV) || h.MaCV, file: h.FileVanBan
     }));
@@ -174,7 +174,7 @@ function showLoanHistory(maKV) {
         const x=hist[Number(b.dataset.histEdit)];
         if(x.kind==='manual') return openLoanForm(master);
         b.disabled=true;b.textContent='Đang mở…';
-        try{openHoSoForm(await apiGet('get',{sheet:'HoSo',id:x.maHS}),()=>showLoanHistory(maKV));}catch(err){toast(err.message,true);}
+        try{openHoSoForm(await apiGet('get',{sheet:'HoSo',id:x.maHS,matchField:'MaKhoanVay',matchValue:x.maKV||maKV}),()=>showLoanHistory(maKV));}catch(err){toast(err.message,true);}
       });
       el.querySelectorAll('[data-hist-del]').forEach(b=>b.onclick=async()=>{
         const x=hist[Number(b.dataset.histDel)];
@@ -185,7 +185,8 @@ function showLoanHistory(maKV) {
             const data={...master,'SỐ VBXN':'','NGÀY VBXN':'',FILE:''};
             await apiPost('update','Khoanvay',data,maKV);Object.assign(master,data);
           }else{
-            await apiPost('delete','HoSo',{},x.maHS);DB.HoSo=DB.HoSo.filter(h=>String(h.MaHoSo)!==String(x.maHS));
+            await apiPost('delete','HoSo',{},x.maHS,'MaKhoanVay',x.maKV||maKV);
+            DB.HoSo=DB.HoSo.filter(h=>!(String(h.MaHoSo)===String(x.maHS) && String(h.MaKhoanVay||'')===String(x.maKV||maKV)));
           }
           showLoanHistory(maKV);toast('Đã xóa dòng lịch sử');
         }catch(err){toast(err.message,true);b.disabled=false;b.textContent='Xóa';}
