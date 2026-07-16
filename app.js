@@ -624,7 +624,6 @@ function openHoSoForm(rec, afterSave, forceNew = false) {
   rec = rec || { TrangThai: 'Chưa tiếp nhận', MaCV: 'CK', HetNo: false };
 
   const khOptions = DB.KhachHang.map(k => `<option value="${esc(k.MaKH)} — ${esc(k.TenKhachHang)}"></option>`).join('');
-  const tthcOptions = DB.TTHC.map(t => `<option value="${esc(t.MaTTHC)} — ${esc(t.TenTTHC)}"></option>`).join('');
   const cvOptions = DB.ChuyenVien.map(c => `<option value="${esc(c.MaCV)} — ${esc(c.HoTen || '')}"></option>`).join('');
   const trangThaiOptions = TRANGTHAI_HOSO.map(t => `<option value="${t}" ${rec.TrangThai === t ? 'selected' : ''}>${t}</option>`).join('');
   const nteOptions = DB.TyGia.map(r => `<option value="${esc(r.MaNgoaiTe)}">${esc(r.MaNgoaiTe)}</option>`).join('');
@@ -641,7 +640,10 @@ function openHoSoForm(rec, afterSave, forceNew = false) {
           <input name="MaKH" id="fMaKH" list="hsKhOptions" value="${rec.MaKH ? esc(rec.MaKH + ' — ' + khName(rec.MaKH)) : ''}" autocomplete="off" placeholder="Gõ mã hoặc tên khách hàng" required /><datalist id="hsKhOptions">${khOptions}</datalist>
           <span class="hint" id="khHint"></span></div>
         <div class="field span-2"><label>Thủ tục hành chính</label>
-          <input name="MaTTHC" id="fMaTTHC" list="hsTthcOptions" value="${rec.MaTTHC ? esc(rec.MaTTHC + ' — ' + tthcName(rec.MaTTHC)) : ''}" autocomplete="off" placeholder="Gõ mã hoặc tên TTHC" required /><datalist id="hsTthcOptions">${tthcOptions}</datalist></div>
+          <div class="autocomplete-wrap">
+            <input name="MaTTHC" id="fMaTTHC" value="${rec.MaTTHC ? esc(rec.MaTTHC + ' — ' + tthcName(rec.MaTTHC)) : ''}" autocomplete="off" placeholder="Gõ mã hoặc tên TTHC" required />
+            <div class="autocomplete-menu" id="hsTthcMenu" hidden></div>
+          </div></div>
 
         <div class="field"><label>Ngày tiếp nhận hồ sơ</label>
           <input type="date" name="NgayTiepNhan" value="${toISODate(rec.NgayTiepNhan)}" required /></div>
@@ -733,7 +735,29 @@ function openHoSoForm(rec, afterSave, forceNew = false) {
     };
     el.querySelector('#fMaKH').oninput = (e) => { el.querySelector('#khHint').textContent = khName(lookupCode(e.target.value)); };
     if (rec.MaKH) el.querySelector('#khHint').textContent = khName(rec.MaKH);
-    el.querySelector('#fMaTTHC').oninput = updateVisibility;
+    const tthcInput = el.querySelector('#fMaTTHC');
+    const tthcMenu = el.querySelector('#hsTthcMenu');
+    const normalizeSearch = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase();
+    const drawTthcMenu = () => {
+      const query = normalizeSearch(tthcInput.value.trim());
+      const matches = DB.TTHC.filter(t => !query || normalizeSearch(`${t.MaTTHC} ${t.TenTTHC}`).includes(query)).slice(0, 60);
+      tthcMenu.innerHTML = matches.length
+        ? matches.map(t => `<button type="button" class="autocomplete-option" data-code="${esc(t.MaTTHC)}"><b>${esc(t.MaTTHC)}</b><span>${esc(t.TenTTHC)}</span></button>`).join('')
+        : '<div class="autocomplete-empty">Không tìm thấy thủ tục phù hợp.</div>';
+      tthcMenu.hidden = false;
+    };
+    tthcInput.addEventListener('focus', drawTthcMenu);
+    tthcInput.addEventListener('input', () => { drawTthcMenu(); updateVisibility(); });
+    tthcInput.addEventListener('blur', () => setTimeout(() => { tthcMenu.hidden = true; }, 150));
+    tthcMenu.addEventListener('mousedown', event => event.preventDefault());
+    tthcMenu.addEventListener('click', event => {
+      const option = event.target.closest('[data-code]');
+      if (!option) return;
+      const code = option.dataset.code;
+      tthcInput.value = `${code} — ${tthcName(code)}`;
+      tthcMenu.hidden = true;
+      updateVisibility();
+    });
     el.querySelector('#fTrangThai').onchange = updateVisibility;
     el.querySelector('#fSoTienVay').oninput = updateUSD;
     el.querySelector('#fNguyenTeVay').onchange = updateUSD;

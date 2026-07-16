@@ -246,6 +246,21 @@ tbody tr:hover{ background:#FBFAF6; }
 .field.span-2{ grid-column:span 2; }
 .field label{ font-size:12.5px; font-weight:600; color:var(--ink-soft); }
 .field .hint{ font-size:11.5px; color:#9A927E; }
+.autocomplete-wrap{position:relative;width:100%}
+.autocomplete-menu{
+  position:absolute;left:0;right:0;top:calc(100% + 5px);z-index:120;
+  max-height:330px;overflow-y:auto;padding:6px;background:#fffef9;
+  border:1px solid var(--line-dark);border-radius:9px;box-shadow:0 12px 30px rgba(30,42,68,.2)
+}
+.autocomplete-option{
+  display:grid;grid-template-columns:105px minmax(0,1fr);gap:8px;width:100%;
+  padding:10px;border:0;border-radius:6px;background:transparent;color:var(--ink);
+  font:inherit;text-align:left;cursor:pointer;white-space:normal
+}
+.autocomplete-option:hover{background:#f2efe6}
+.autocomplete-option b{font-family:'IBM Plex Mono',monospace;font-size:12px}
+.autocomplete-option span{line-height:1.4;overflow-wrap:anywhere}
+.autocomplete-empty{padding:12px;color:var(--ink-soft);font-size:13px}
 input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea{
   font-family:'Inter', sans-serif;
   font-size:14px;
