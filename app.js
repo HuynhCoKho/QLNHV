@@ -178,7 +178,13 @@ function findCustomerByCode(ma){
 function khName(ma) { const r=findCustomerByCode(ma); return r ? r.TenKhachHang : ''; }
 function qgName(ma) { const r = DB.QG.find(x => x['MÃ QUỐC GIA'] === String(ma)); return r ? r['TÊN QUỐC GIA'] : String(ma || ''); }
 function cvName(ma) { const r = DB.ChuyenVien.find(x => x.MaCV === ma); return r ? r.HoTen : ''; }
-function tthcRow(ma) { return DB.TTHC.find(x => x.MaTTHC === ma); }
+// Ma TTHC trong Google Sheets cu co the bi tu dong ep thanh Number
+// (vi du 1.000111), trong khi danh muc TTHC duoc luu la String. Luon so
+// sanh theo chuoi de ten thu tuc van duoc ghep dung khi mo lai ho so.
+function tthcRow(ma) {
+  const code = String(ma ?? '').trim();
+  return DB.TTHC.find(x => String(x.MaTTHC ?? '').trim() === code);
+}
 function tthcName(ma) { const r = tthcRow(ma); return r ? r.TenTTHC : ''; }
 function rateRow(code) { return DB.TyGia.find(x => x.MaNgoaiTe === code); }
 function nhomNghiepVuRow(ten) { return DB.NhomNghiepVu.find(x => sameText(x.TenNhom, ten)); }
