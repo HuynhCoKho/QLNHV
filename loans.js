@@ -20,6 +20,16 @@ function isLoanProcedure(maTTHC) {
   return !!t && isSpecialGroup(t.NhomNghiepVu);
 }
 
+function loanDocumentStem(value) {
+  return String(value || '').trim().toLowerCase().split('/')[0].replace(/[^a-z0-9]/g, '');
+}
+
+function isInitialLoanCase(h) {
+  const name = String(tthcName(h && h.MaTTHC) || '').normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase();
+  return name && !name.includes('thay doi');
+}
+
 // Khi hồ sơ TTHC đã được cấp mã khoản vay, tự tạo/cập nhật bản ghi chính
 // trong Khoanvay. Hồ sơ vẫn được giữ riêng để hiển thị đầy đủ lịch sử xác
 // nhận đăng ký và đăng ký thay đổi.
@@ -50,7 +60,9 @@ async function syncLoanFromCase(h) {
     if (!existing) data['DƯ NỢ'] = amount;
   }
   if (h.NguyenTeVay) data['ĐỒNG TIỀN'] = h.NguyenTeVay;
-  if (h.FileVanBan) data.FILE = h.FileVanBan;
+  // File của hồ sơ thay đổi chỉ thuộc chính hồ sơ đó; không được ghi đè file
+  // xác nhận đăng ký ban đầu đang lưu trên bản ghi khoản vay.
+  if (h.FileVanBan && (!existing || !data.FILE || isInitialLoanCase(h))) data.FILE = h.FileVanBan;
   data['HẾT NỢ'] = h.HetNo === true || String(h.HetNo).toLowerCase() === 'true';
   if (data['HẾT NỢ']) data['DƯ NỢ'] = 0;
 
@@ -94,11 +106,28 @@ function loanHistory(maKV) {
       tenTTHC: tthcName(h.MaTTHC), giaTri: h.SoTienVayNguyenTe, tien: h.NguyenTeVay,
       cv: cvName(h.MaCV) || h.MaCV, file: h.FileVanBan
     }));
-  const sameDocument = (a, soVB, ngayVB) => String(a.soVB || '').trim().toLowerCase() === String(soVB || '').trim().toLowerCase()
-    && toISODate(a.ngayVB) === toISODate(ngayVB);
+  const sameDocument = (a, soVB, ngayVB) => {
+    const sameDate = toISODate(a.ngayVB) === toISODate(ngayVB);
+    const aNo = String(a.soVB || '').trim().toLowerCase();
+    const bNo = String(soVB || '').trim().toLowerCase();
+    return sameDate && (aNo === bNo || (loanDocumentStem(aNo) && loanDocumentStem(aNo) === loanDocumentStem(bNo)));
+  };
+  // Số văn bản trên bảng khoản vay cũ thường chỉ lưu phần số (ví dụ 621),
+  // trong khi hồ sơ lưu đủ 621/HCM-QLNHV. Ghép chúng thành cùng một lịch sử
+  // và đưa file của khoản vay vào hồ sơ xác nhận ban đầu, không sinh dòng tay.
+  const initial = master && (items.find(x => sameDocument(x, master['SỐ VBXN'], master['NGÀY VBXN']))
+    || items.find(x => {
+      const h = DB.HoSo.find(r => String(r.MaHoSo) === String(x.maHS) && String(r.MaKhoanVay || '').trim() === maKV);
+      return h && isInitialLoanCase(h);
+    }));
+  if (initial && master) {
+    if (!initial.file && master.FILE) initial.file = master.FILE;
+    if (!initial.giaTri && master['KIM NGẠCH VAY']) initial.giaTri = master['KIM NGẠCH VAY'];
+    if (!initial.tien && master['ĐỒNG TIỀN']) initial.tien = master['ĐỒNG TIỀN'];
+  }
   // Hồ sơ đã đồng bộ sang dòng khoản vay không phải là một lịch sử nhập tay mới.
   if (master && (master['SỐ VBXN'] || master['NGÀY VBXN'] || master.FILE)
-      && !items.some(x => sameDocument(x, master['SỐ VBXN'], master['NGÀY VBXN']))) {
+      && !initial) {
     items.push({
       kind: 'manual', source: 'Nhập thủ công', soVB: master['SỐ VBXN'], ngayVB: master['NGÀY VBXN'],
       maHS: '', tenTTHC: 'Xác nhận đăng ký ban đầu', giaTri: master['KIM NGẠCH VAY'],
@@ -258,6 +287,19 @@ function openLoanForm(record) {
           const file=el.querySelector('#loanFile').files[0];
           if(file){btn.textContent='Đang tải file…';data.FILE=(await uploadLoanFile(file,data['MÃ SỐ KV'])).url;btn.textContent='Đang lưu…';}
           await apiPost(edit?'update':'create','Khoanvay',data,edit?record['MÃ SỐ KV']:undefined);
+
+          // File xác nhận ban đầu phải nằm trên hồ sơ TTHC đăng ký khoản vay.
+          // Chỉ đồng bộ khi người dùng vừa chọn file mới để không làm chậm các
+          // lần sửa dư nợ/trạng thái thông thường.
+          if (file) {
+            await ensureLoanHistoryData();
+            const initialCase = DB.HoSo.find(h => String(h.MaKhoanVay || '').trim() === String(data['MÃ SỐ KV']).trim() && isInitialLoanCase(h));
+            if (initialCase) {
+              const updatedCase = { ...initialCase, FileVanBan: data.FILE };
+              await apiPost('update','HoSo',updatedCase,initialCase.MaHoSo,'MaKhoanVay',data['MÃ SỐ KV']);
+              Object.assign(initialCase, updatedCase);
+            }
+          }
 
           // Không tải lại toàn bộ hơn 2.400 dòng. API đã xác nhận thành công thì
           // cập nhật đúng một bản ghi trong bộ nhớ và vẽ lại ngay trên màn hình.
