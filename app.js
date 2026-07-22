@@ -893,9 +893,33 @@ function renderKhachHang() {
   document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" id="btnNewKH">+ Khách hàng mới</button>`;
   document.getElementById('btnNewKH').onclick = () => openKHForm();
   const view = document.getElementById('view');
+  const uniqueValues = (field) => [...new Set(DB.KhachHang.map(r => String(r[field] || '').trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'vi'));
+  const optionHtml = (values) => values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  const orgTypeNames = new Map((DB.LoaiHinhKhachHang || []).map(r => [String(r.MaLoai || '').trim(), String(r.TenLoai || '').trim()]));
+  const orgTypeOptions = uniqueValues('LoaiToChuc').map(v => {
+    const label = orgTypeNames.get(v);
+    return `<option value="${esc(v)}">${esc(label ? `${v} — ${label}` : v)}</option>`;
+  }).join('');
   view.innerHTML = `
     ${statsBarHtml(DB.KhachHang, 'Loai', (v) => v === 'ToChuc' ? 'Tổ chức' : v === 'CaNhan' ? 'Cá nhân' : v)}
     <div class="toolbar"><input type="text" class="search-input" id="khSearch" placeholder="Tìm theo mã, tên khách hàng…" /></div>
+    <div class="customer-filter-grid">
+      <select class="select-filter" id="khFilterWard" aria-label="Lọc theo phường xã">
+        <option value="">— Tất cả Phường/Xã —</option>${optionHtml(uniqueValues('DiaChiPhuongXa'))}
+      </select>
+      <select class="select-filter" id="khFilterProvince" aria-label="Lọc theo tỉnh thành phố">
+        <option value="">— Tất cả Tỉnh/Thành phố —</option>${optionHtml(uniqueValues('DiaChiTinhTP'))}
+      </select>
+      <select class="select-filter" id="khFilterCustomerType" aria-label="Lọc theo loại khách hàng">
+        <option value="">— Tất cả loại khách hàng —</option>
+        <option value="ToChuc">Tổ chức</option>
+        <option value="CaNhan">Cá nhân</option>
+      </select>
+      <select class="select-filter" id="khFilterOrganizationType" aria-label="Lọc theo loại hình tổ chức">
+        <option value="">— Tất cả loại hình tổ chức —</option>${orgTypeOptions}
+      </select>
+    </div>
     <div class="card"><div class="table-wrap"><table>
       <thead><tr><th>Mã KH</th><th>Loại</th><th>Tên khách hàng</th><th>Địa chỉ</th><th>SĐT</th><th>Email</th><th></th></tr></thead>
       <tbody id="khBody"></tbody>
@@ -907,7 +931,18 @@ function renderKhachHang() {
   let page = 1;
   const draw = () => {
     const q = (document.getElementById('khSearch').value || '').toLowerCase();
-    const filtered = DB.KhachHang.filter(r => !q || r.MaKH.toLowerCase().includes(q) || (r.TenKhachHang || '').toLowerCase().includes(q));
+    const ward = document.getElementById('khFilterWard').value;
+    const province = document.getElementById('khFilterProvince').value;
+    const customerType = document.getElementById('khFilterCustomerType').value;
+    const organizationType = document.getElementById('khFilterOrganizationType').value;
+    const filtered = DB.KhachHang.filter(r => {
+      const matchesSearch = !q || String(r.MaKH || '').toLowerCase().includes(q) || String(r.TenKhachHang || '').toLowerCase().includes(q);
+      return matchesSearch
+        && (!ward || String(r.DiaChiPhuongXa || '').trim() === ward)
+        && (!province || String(r.DiaChiTinhTP || '').trim() === province)
+        && (!customerType || String(r.Loai || '').trim() === customerType)
+        && (!organizationType || String(r.LoaiToChuc || '').trim() === organizationType);
+    });
     // Sap xep A-Z theo ten khach hang
     filtered.sort((a, b) => (a.TenKhachHang || '').localeCompare(b.TenKhachHang || '', 'vi'));
 
@@ -942,6 +977,9 @@ function renderKhachHang() {
     wirePager('kh', () => page, (p) => { page = p; }, totalPages, draw);
   };
   document.getElementById('khSearch').oninput = () => { page = 1; draw(); };
+  ['khFilterWard', 'khFilterProvince', 'khFilterCustomerType', 'khFilterOrganizationType'].forEach(id => {
+    document.getElementById(id).onchange = () => { page = 1; draw(); };
+  });
   draw();
 }
 function loaiKHLabel(r) {
