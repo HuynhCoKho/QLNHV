@@ -223,7 +223,7 @@ async function showLoanHistory(maKV) {
   openModal(`Lịch sử khoản vay ${maKV}`, `<div class="loan-summary"><div><span>Doanh nghiệp</span><b>${esc(kh?kh.TenKhachHang:'—')}</b><small class="mono">${esc(maKH)}</small></div><div><span>Khoản vay / Dư nợ</span><b>${esc(fmtNum(master&&master['KIM NGẠCH VAY']))} / ${esc(fmtNum(master&&master['DƯ NỢ']))} ${esc(master&&master['ĐỒNG TIỀN'])}</b><small>${loanIsPaid(master)?'Đã trả hết nợ':'Chưa hết nợ'} · ${loanHasGovernmentGuarantee(master)?'Có CP bảo lãnh':'Không CP bảo lãnh'} · ${hist.length} văn bản/hồ sơ liên quan</small></div></div>
     <div style="text-align:right;margin-bottom:10px"><button class="btn btn-primary btn-sm" id="addLoanHistory">+ Thêm lịch sử</button></div>
     <div class="table-wrap loan-history-table"><table><thead><tr><th>Số văn bản</th><th>Ngày VB</th><th>Hồ sơ TTHC</th><th>Giá trị</th><th>Chuyên viên</th><th>Loại</th><th>File</th><th></th></tr></thead><tbody>
-    ${hist.length?hist.map((x,i)=>`<tr><td><b>${esc(x.soVB||'—')}</b></td><td class="mono">${esc(fmtDateVN(x.ngayVB))}</td><td>${esc(x.maHS||'—')}<div class="muted">${esc(x.tenTTHC)}</div></td><td class="num">${esc(fmtNum(x.giaTri))} ${esc(x.tien)}</td><td>${esc(x.cv||'—')}</td><td>${esc(x.source)}</td><td>${x.file?`<a class="btn btn-outline btn-sm" href="${esc(x.file)}" target="_blank" rel="noopener">Mở file</a>`:'—'}</td><td class="cell-actions"><button class="btn btn-outline btn-sm" data-hist-edit="${i}">Sửa</button><button class="btn btn-danger btn-sm" data-hist-del="${i}">Xóa</button></td></tr>`).join(''):`<tr><td colspan="8" class="muted">Chưa có văn bản lịch sử.</td></tr>`}
+    ${hist.length?hist.map((x,i)=>`<tr><td><b>${esc(x.soVB||'—')}</b></td><td class="mono">${esc(fmtDateVN(x.ngayVB))}</td><td>${esc(x.maHS||'—')}<div class="muted">${esc(x.tenTTHC)}</div></td><td class="num">${esc(fmtNum(x.giaTri))} ${esc(x.tien)}</td><td>${esc(x.cv||'—')}</td><td>${esc(x.source)}</td><td>${fileListLinksHtml(x.file)}</td><td class="cell-actions"><button class="btn btn-outline btn-sm" data-hist-edit="${i}">Sửa</button><button class="btn btn-danger btn-sm" data-hist-del="${i}">Xóa</button></td></tr>`).join(''):`<tr><td colspan="8" class="muted">Chưa có văn bản lịch sử.</td></tr>`}
     </tbody></table></div><div class="modal-foot"><button class="btn btn-outline" id="loanClose">Đóng</button></div>`, el=>{
       el.querySelector('#loanClose').onclick=closeModal;
       el.querySelector('#addLoanHistory').onclick=()=>openHoSoForm({MaKH,MaKhoanVay:maKV,TrangThai:'Đã xử lý',MaCV:'CK',NguyenTeVay:master&&master['ĐỒNG TIỀN'],SoTienVayNguyenTe:master&&master['KIM NGẠCH VAY']},()=>showLoanHistory(maKV),true);
@@ -265,7 +265,7 @@ function openLoanForm(record) {
     <div class="field"><label>Dư nợ (cùng đồng tiền vay)</label><input type="number" step="any" min="0" name="DƯ NỢ" value="${esc(record['DƯ NỢ'])}"></div>
     <div class="field"><label class="check-label"><input type="checkbox" name="HẾT NỢ" value="true" ${loanIsPaid(record)?'checked':''}> Khoản vay đã trả hết nợ</label><span class="hint">Mặc định để trống là chưa hết nợ.</span></div>
     <div class="field"><label class="check-label"><input type="checkbox" name="CP BẢO LÃNH" value="true" ${loanHasGovernmentGuarantee(record)?'checked':''}> Khoản vay được Chính phủ bảo lãnh</label><span class="hint">Mặc định để trống là không có bảo lãnh.</span></div>
-    <div class="field span-2"><label>File văn bản xác nhận</label><input type="file" id="loanFile" accept=".pdf,image/*"><span class="hint">File lưu riêng trên Google Drive; giữ nguyên file cũ nếu không chọn file mới.</span>${record.FILE?`<a href="${esc(record.FILE)}" target="_blank" rel="noopener">Mở file hiện tại</a>`:''}</div>
+    ${fileFieldHtml('FILE', record.FILE, { label: 'File văn bản xác nhận', accept: '.pdf,image/*' })}
     </div><div class="modal-foot"><button type="button" class="btn btn-outline" id="cancelLoan">Hủy</button><button class="btn btn-primary" id="saveLoan">Lưu</button></div></form>`, el=>{
       el.querySelector('#cancelLoan').onclick=closeModal;
       el.querySelector('form').onsubmit=async e=>{
@@ -283,15 +283,17 @@ function openLoanForm(record) {
           data['CP BẢO LÃNH']=fd.get('CP BẢO LÃNH')==='true';
           // Khoản vay đã hết nợ thì dư nợ phải bằng 0 để số liệu thống kê nhất quán.
           if(data['HẾT NỢ']) data['DƯ NỢ']=0;
-          data.FILE=record.FILE||'';
-          const file=el.querySelector('#loanFile').files[0];
-          if(file){btn.textContent='Đang tải file…';data.FILE=(await uploadLoanFile(file,data['MÃ SỐ KV'])).url;btn.textContent='Đang lưu…';}
+          const fileContainer=el.querySelector('[data-file-field="FILE"]');
+          const fileChanged=fileFieldChanged(fileContainer);
+          btn.textContent='Đang tải file…';
+          data.FILE=await collectFileFieldValue(fileContainer, file=>uploadLoanFile(file,data['MÃ SỐ KV']));
+          btn.textContent='Đang lưu…';
           await apiPost(edit?'update':'create','Khoanvay',data,edit?record['MÃ SỐ KV']:undefined);
 
           // File xác nhận ban đầu phải nằm trên hồ sơ TTHC đăng ký khoản vay.
           // Chỉ đồng bộ khi người dùng vừa chọn file mới để không làm chậm các
           // lần sửa dư nợ/trạng thái thông thường.
-          if (file) {
+          if (fileChanged) {
             await ensureLoanHistoryData();
             const initialCase = DB.HoSo.find(h => String(h.MaKhoanVay || '').trim() === String(data['MÃ SỐ KV']).trim() && isInitialLoanCase(h));
             if (initialCase) {
