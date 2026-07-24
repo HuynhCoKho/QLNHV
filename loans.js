@@ -293,19 +293,6 @@ function openLoanForm(record) {
           btn.textContent='Đang lưu…';
           await apiPost(edit?'update':'create','Khoanvay',data,edit?record['MÃ SỐ KV']:undefined);
 
-          // File xác nhận ban đầu phải nằm trên hồ sơ TTHC đăng ký khoản vay.
-          // Chỉ đồng bộ khi người dùng vừa chọn file mới để không làm chậm các
-          // lần sửa dư nợ/trạng thái thông thường.
-          if (fileChanged) {
-            await ensureLoanHistoryData();
-            const initialCase = DB.HoSo.find(h => String(h.MaKhoanVay || '').trim() === String(data['MÃ SỐ KV']).trim() && isInitialLoanCase(h));
-            if (initialCase) {
-              const updatedCase = { ...initialCase, FileVanBan: data.FILE };
-              await apiPost('update','HoSo',updatedCase,initialCase.MaHoSo,'MaKhoanVay',data['MÃ SỐ KV']);
-              Object.assign(initialCase, updatedCase);
-            }
-          }
-
           // Không tải lại toàn bộ hơn 2.400 dòng. API đã xác nhận thành công thì
           // cập nhật đúng một bản ghi trong bộ nhớ và vẽ lại ngay trên màn hình.
           if(edit) Object.assign(record,data);
@@ -313,6 +300,27 @@ function openLoanForm(record) {
           closeModal();
           renderKhoanVay();
           toast('Đã lưu khoản vay '+data['MÃ SỐ KV']);
+
+          // File xác nhận ban đầu phải nằm trên hồ sơ TTHC đăng ký khoản vay.
+          // Chỉ đồng bộ khi người dùng vừa chọn file mới, và chạy ngầm phía sau
+          // (không chặn màn hình) vì phải tải cả sheet Hồ sơ (~15.000 dòng) nên
+          // có thể mất nhiều thời gian — không được để việc này giữ modal Lưu
+          // đứng chờ, kẻo tưởng như file mới chưa được lưu.
+          if (fileChanged) {
+            (async () => {
+              try {
+                await ensureLoanHistoryData();
+                const initialCase = DB.HoSo.find(h => String(h.MaKhoanVay || '').trim() === String(data['MÃ SỐ KV']).trim() && isInitialLoanCase(h));
+                if (initialCase) {
+                  const updatedCase = { ...initialCase, FileVanBan: data.FILE };
+                  await apiPost('update','HoSo',updatedCase,initialCase.MaHoSo,'MaKhoanVay',data['MÃ SỐ KV']);
+                  Object.assign(initialCase, updatedCase);
+                }
+              } catch (err) {
+                toast('Đã lưu khoản vay nhưng chưa đồng bộ được file sang hồ sơ gốc: ' + err.message, true);
+              }
+            })();
+          }
         }catch(err){
           toast('Chưa lưu được: '+err.message,true);
           btn.disabled=false; btn.textContent=oldLabel;
