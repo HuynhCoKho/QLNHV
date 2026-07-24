@@ -621,7 +621,7 @@ const HOSO_DETAIL_FIELDS = [
   ['TrangThai', 'Trạng thái', (v) => statusBadge(v)],
   ['SoVanBan', 'Số văn bản'],
   ['NgayVanBan', 'Ngày văn bản'],
-  ['FileVanBan', 'File văn bản đính kèm', (v) => v ? `<a href="${esc(v)}" target="_blank" rel="noopener">Xem file</a>` : '—'],
+  ['FileVanBan', 'File văn bản đính kèm', (v) => fileListLinksHtml(v, { linkClass: '', sep: '<br>' })],
   ['SoPhieuBoSung', 'Số phiếu yêu cầu bổ sung'],
   ['NgayYeuCauBoSung', 'Ngày yêu cầu bổ sung'],
   ['NoiDungBoSung', 'Nội dung cần bổ sung'],
@@ -681,10 +681,7 @@ function openHoSoForm(rec, afterSave, forceNew = false) {
           <div class="form-grid">
             <div class="field"><label>Số văn bản</label><input type="text" name="SoVanBan" value="${esc(rec.SoVanBan || '')}" /></div>
             <div class="field"><label>Ngày văn bản</label><input type="date" name="NgayVanBan" value="${toISODate(rec.NgayVanBan)}" /></div>
-            <div class="field span-2"><label>File văn bản đã xử lý</label>
-              <input type="file" id="fFileVanBan" />
-              ${rec.FileVanBan ? `<span class="hint">Đã có file: <a href="${esc(rec.FileVanBan)}" target="_blank" rel="noopener">xem file hiện tại</a> — chọn file mới nếu muốn thay thế</span>` : ''}
-            </div>
+            ${fileFieldHtml('FileVanBan', rec.FileVanBan, { label: 'File văn bản đã xử lý' })}
           </div>
         </fieldset>
 
@@ -797,15 +794,11 @@ function openHoSoForm(rec, afterSave, forceNew = false) {
       submitBtn.disabled = true;
       const originalBtnText = submitBtn.textContent;
       try {
-        let fileVanBanUrl = rec.FileVanBan || '';
-        const fileInput = el.querySelector('#fFileVanBan');
-        if (fileInput.files && fileInput.files[0]) {
-          submitBtn.textContent = 'Đang tải file lên…';
-          const file = fileInput.files[0];
+        submitBtn.textContent = 'Đang tải file lên…';
+        const fileVanBanUrl = await collectFileFieldValue(el.querySelector('[data-file-field="FileVanBan"]'), async (file) => {
           const base64Data = await fileToBase64(file);
-          const uploadRes = await apiUploadFile(file.name, file.type, base64Data, fd.get('MaHoSo').trim());
-          fileVanBanUrl = uploadRes.url;
-        }
+          return apiUploadFile(file.name, file.type, base64Data, fd.get('MaHoSo').trim());
+        });
         submitBtn.textContent = 'Đang lưu…';
         const data = {
           MaHoSo: fd.get('MaHoSo').trim(),
@@ -884,6 +877,136 @@ async function apiUploadFile(fileName, mimeType, base64Data, maHoSo) {
     throw new Error(msg);
   }
   return json;
+}
+
+// ============================================================
+// Trường đính kèm nhiều file: lưu dạng JSON [{name,url}] trong cùng cột
+// FILE/FileVanBan vốn chỉ chứa 1 URL, vẫn đọc được dữ liệu cũ (URL đơn/nhiều
+// URL cách nhau bằng khoảng trắng) để không cần thay đổi gì ở Apps Script.
+// ============================================================
+function fileNameFromUrl(url) {
+  try {
+    const path = decodeURIComponent(String(url || '').split('?')[0]);
+    const parts = path.split('/').filter(Boolean);
+    return parts[parts.length - 1] || 'File đính kèm';
+  } catch (e) { return 'File đính kèm'; }
+}
+function parseFileList(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return [];
+  if (s.startsWith('[')) {
+    try {
+      const arr = JSON.parse(s);
+      if (Array.isArray(arr)) return arr.filter(x => x && x.url).map(x => ({ name: String(x.name || fileNameFromUrl(x.url)), url: String(x.url) }));
+    } catch (e) { /* không phải JSON hợp lệ, coi như dữ liệu cũ bên dưới */ }
+  }
+  return s.split(/\s+/).filter(Boolean).map(url => ({ name: fileNameFromUrl(url), url }));
+}
+function stringifyFileList(list) {
+  const clean = (list || []).filter(x => x && x.url).map(x => ({ name: x.name || fileNameFromUrl(x.url), url: x.url }));
+  return clean.length ? JSON.stringify(clean) : '';
+}
+function fileListLinksHtml(raw, opts) {
+  opts = opts || {};
+  const list = parseFileList(raw);
+  if (!list.length) return opts.empty !== undefined ? opts.empty : '—';
+  const cls = opts.linkClass || 'btn btn-outline btn-sm';
+  return list.map(f => `<a class="${esc(cls)}" href="${esc(f.url)}" target="_blank" rel="noopener">${esc(opts.label || f.name || 'Mở file')}</a>`).join(opts.sep !== undefined ? opts.sep : ' ');
+}
+
+// Sinh HTML cho một trường "đính kèm nhiều file": danh sách file đã lưu (có
+// nút × để xóa nếu lỡ đính nhầm) và ô chọn thêm file mới (multiple).
+function fileFieldHtml(fieldKey, existingRaw, options) {
+  options = options || {};
+  const label = options.label || 'File đính kèm';
+  const accept = options.accept ? ` accept="${esc(options.accept)}"` : '';
+  const hint = options.hint || 'Có thể chọn nhiều file cùng lúc. Bấm × để bỏ file đính kèm nhầm.';
+  return `
+    <div class="field span-2 file-field" data-file-field="${esc(fieldKey)}" data-existing="${esc(stringifyFileList(parseFileList(existingRaw)))}">
+      <label>${esc(label)}</label>
+      <div class="file-field-list" data-role="file-existing-list"></div>
+      <div class="file-field-list" data-role="file-pending-list"></div>
+      <input type="file" multiple${accept} data-role="file-input" />
+      <span class="hint">${esc(hint)}</span>
+    </div>`;
+}
+
+function wireFileFields(root) {
+  root.querySelectorAll('[data-file-field]').forEach(container => {
+    if (container.dataset.wired === '1') return;
+    container.dataset.wired = '1';
+    const existing = parseFileList(container.dataset.existing);
+    const pending = [];
+    const existingList = container.querySelector('[data-role="file-existing-list"]');
+    const pendingList = container.querySelector('[data-role="file-pending-list"]');
+    const input = container.querySelector('[data-role="file-input"]');
+    const drawExisting = () => {
+      existingList.innerHTML = existing.map((f, i) => `<span class="file-chip"><a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.name)}</a><button type="button" class="file-chip-remove" data-remove-existing="${i}" title="Xóa file này">×</button></span>`).join('');
+    };
+    const drawPending = () => {
+      pendingList.innerHTML = pending.map((f, i) => `<span class="file-chip file-chip-pending">${esc(f.name)}<button type="button" class="file-chip-remove" data-remove-pending="${i}" title="Bỏ chọn file này">×</button></span>`).join('');
+    };
+    drawExisting(); drawPending();
+    existingList.addEventListener('click', e => {
+      const btn = e.target.closest('[data-remove-existing]');
+      if (!btn) return;
+      existing.splice(Number(btn.dataset.removeExisting), 1);
+      drawExisting();
+    });
+    const syncInputFiles = () => {
+      const dt = new DataTransfer();
+      pending.forEach(f => dt.items.add(f.file));
+      input.files = dt.files;
+    };
+    pendingList.addEventListener('click', e => {
+      const btn = e.target.closest('[data-remove-pending]');
+      if (!btn) return;
+      pending.splice(Number(btn.dataset.removePending), 1);
+      drawPending();
+      syncInputFiles();
+    });
+    input.addEventListener('change', () => {
+      Array.from(input.files || []).forEach(file => pending.push({ file, name: file.name }));
+      drawPending();
+      syncInputFiles();
+    });
+    container._fileFieldApi = {
+      getExisting: () => existing.slice(),
+      getPendingFiles: () => pending.map(p => p.file)
+    };
+  });
+}
+new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(node => {
+  if (node.nodeType === 1) wireFileFields(node);
+}))).observe(document.getElementById('modalRoot'), {childList:true, subtree:true});
+
+// True nếu người dùng vừa chọn thêm file mới hoặc xóa bớt file đã lưu —
+// dùng để biết có cần đồng bộ FILE sang các bảng liên quan khác hay không.
+function fileFieldChanged(container) {
+  if (!container || !container._fileFieldApi) return false;
+  const api = container._fileFieldApi;
+  if (api.getPendingFiles().length) return true;
+  const original = parseFileList(container.dataset.existing).map(f => f.url);
+  const kept = api.getExisting().map(f => f.url);
+  if (original.length !== kept.length) return true;
+  return original.some((u, i) => u !== kept[i]);
+}
+
+// Gộp file cũ còn giữ lại + file mới vừa tải lên (qua uploader(file)) thành
+// chuỗi lưu cho cột FILE/FileVanBan. Nếu trường chưa được wire (không có file
+// mới nào từng chọn), giữ nguyên dữ liệu cũ.
+async function collectFileFieldValue(container, uploader) {
+  if (!container) return '';
+  const api = container._fileFieldApi;
+  if (!api) return container.dataset.existing || '';
+  const kept = api.getExisting();
+  const files = api.getPendingFiles();
+  const uploaded = [];
+  for (const file of files) {
+    const res = await uploader(file);
+    uploaded.push({ name: file.name, url: res.url });
+  }
+  return stringifyFileList([...kept, ...uploaded]);
 }
 
 // ============================================================
@@ -1022,14 +1145,8 @@ function openKHForm(rec) {
         <div class="field span-2"><label>Tên khách hàng</label><input type="text" name="TenKhachHang" value="${esc(rec.TenKhachHang || '')}" required /></div>
 
         <div class="field"><label>Số nhà, tên đường</label><input type="text" name="DiaChiSo" value="${esc(rec.DiaChiSo || '')}" /></div>
-        <div class="field"><label>Phường/Xã</label><select name="DiaChiPhuongXa">
-          <option value="">— chọn phường/xã —</option>
-          ${DB.PhuongXa.map(p => `<option value="${esc(p.TenPhuongXa)}" ${rec.DiaChiPhuongXa === p.TenPhuongXa ? 'selected' : ''}>${esc(p.TenPhuongXa)}</option>`).join('')}
-        </select></div>
-        <div class="field"><label>Tỉnh/Thành phố</label><select name="DiaChiTinhTP">
-          <option value="">— chọn tỉnh/thành —</option>
-          ${DB.TinhThanh.map(t => `<option value="${esc(t.TenTinh)}" ${rec.DiaChiTinhTP === t.TenTinh ? 'selected' : ''}>${esc(t.TenTinh)}</option>`).join('')}
-        </select></div>
+        <div class="field"><label>Phường/Xã</label><input type="text" name="DiaChiPhuongXa" list="khPhuongXaOptions" value="${esc(rec.DiaChiPhuongXa || '')}" placeholder="Gõ để tìm phường/xã" autocomplete="off" /><datalist id="khPhuongXaOptions">${DB.PhuongXa.map(p => `<option value="${esc(p.TenPhuongXa)}"></option>`).join('')}</datalist></div>
+        <div class="field"><label>Tỉnh/Thành phố</label><input type="text" name="DiaChiTinhTP" list="khTinhTPOptions" value="${esc(rec.DiaChiTinhTP || '')}" placeholder="Gõ để tìm tỉnh/thành phố" autocomplete="off" /><datalist id="khTinhTPOptions">${DB.TinhThanh.map(t => `<option value="${esc(t.TenTinh)}"></option>`).join('')}</datalist></div>
         <div class="field"><label>Số điện thoại</label><input type="tel" name="SoDienThoai" value="${esc(rec.SoDienThoai || '')}" /></div>
 
         <div class="field"><label>Email</label><input type="email" name="Email" value="${esc(rec.Email || '')}" /></div>
@@ -1054,6 +1171,10 @@ function openKHForm(rec) {
       const saveBtn=e.target.querySelector('button[type="submit"]'),oldLabel=saveBtn.textContent;
       saveBtn.disabled=true;saveBtn.textContent='Đang lưu…';
       try {
+        if (data.DiaChiPhuongXa && !DB.PhuongXa.some(p => p.TenPhuongXa === data.DiaChiPhuongXa))
+          throw new Error('Vui lòng chọn Phường/Xã trong danh sách gợi ý.');
+        if (data.DiaChiTinhTP && !DB.TinhThanh.some(t => t.TenTinh === data.DiaChiTinhTP))
+          throw new Error('Vui lòng chọn Tỉnh/Thành phố trong danh sách gợi ý.');
         if (isEdit&&oldCode!==data.MaKH) {
           if(!confirm(`Đổi mã khách hàng ${oldCode} thành ${data.MaKH} và cập nhật toàn bộ dữ liệu liên kết?`)){saveBtn.disabled=false;saveBtn.textContent=oldLabel;return;}
           await apiPost('renameCustomerId','KhachHang',{MaKH:data.MaKH},oldCode);

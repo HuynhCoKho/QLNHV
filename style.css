@@ -263,6 +263,21 @@ tbody tr:hover{ background:#FBFAF6; }
 .autocomplete-empty{padding:12px;color:var(--ink-soft);font-size:13px}
 .generic-autocomplete-menu{width:min(760px,calc(100vw - 40px));right:auto}
 .generic-autocomplete-menu.align-right{left:auto;right:0}
+.file-field-list{display:flex;flex-wrap:wrap;gap:8px}
+.file-field-list:empty{display:none}
+.file-chip{
+  display:inline-flex;align-items:center;gap:6px;max-width:100%;
+  padding:5px 6px 5px 10px;border:1px solid var(--line-dark);border-radius:20px;
+  background:#fff;font-size:12.5px;
+}
+.file-chip a{color:var(--seal);text-decoration:none;overflow-wrap:anywhere}
+.file-chip a:hover{text-decoration:underline}
+.file-chip-pending{background:#F1EFE7;color:var(--ink-soft)}
+.file-chip-remove{
+  border:0;background:transparent;color:var(--danger);font-size:16px;line-height:1;
+  cursor:pointer;padding:0 2px;border-radius:50%;
+}
+.file-chip-remove:hover{background:#FBEAE7}
 input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea{
   font-family:'Inter', sans-serif;
   font-size:14px;
