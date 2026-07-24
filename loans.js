@@ -98,6 +98,23 @@ async function ensureLoanHistoryData() {
   return loanHistoryLoadPromise;
 }
 
+// Chỉ lấy đúng các dòng Hồ sơ khớp field/value (vd MaKhoanVay = mã khoản vay
+// đang xem) bằng action 'hosoLinked' phía Apps Script (dùng TextFinder), thay
+// vì phải tải cả sheet Hồ sơ (~15.000 dòng) như ensureLoanHistoryData(). Nếu
+// Apps Script chưa được cập nhật/deploy lại action này, tự động quay về cách
+// cũ để tính năng vẫn chạy được (chỉ chậm hơn) thay vì báo lỗi.
+async function fetchHoSoLinked(field, value) {
+  try {
+    const rows = await apiGet('hosoLinked', { field, value });
+    const existingRows = new Set(DB.HoSo.map(h => h._row).filter(r => r != null));
+    (rows || []).forEach(r => { if (!existingRows.has(r._row)) { DB.HoSo.push(r); existingRows.add(r._row); } });
+    normalizeIds();
+  } catch (err) {
+    if (!/unknown action/i.test(err.message || '')) throw err;
+    await ensureLoanHistoryData();
+  }
+}
+
 function loanHistory(maKV) {
   const master = DB.Khoanvay.find(r => r['MÃ SỐ KV'] === maKV);
   const items = DB.HoSo.filter(h => String(h.MaKhoanVay || '').trim() === maKV && isLoanProcedure(h.MaTTHC))
@@ -216,7 +233,14 @@ async function showLoanHistory(maKV) {
   if (!LOADED_SHEETS.has('HoSo')) {
     openModal('Đang tải lịch sử khoản vay', '<div class="empty-state"><h3>Đang tải dữ liệu lịch sử…</h3><p>Danh sách khoản vay vẫn sử dụng được trong lúc chờ.</p></div>');
     const loadingToken = modalToken;
-    try { await ensureLoanHistoryData(); }
+    try {
+      const missingLookup = ['TTHC','NhomNghiepVu'].filter(s => !LOADED_SHEETS.has(s));
+      if (missingLookup.length) {
+        const bundle = await apiGet('batchList', { sheets: missingLookup.join(',') });
+        missingLookup.forEach(sheet => { DB[sheet] = Array.isArray(bundle[sheet]) ? bundle[sheet] : []; LOADED_SHEETS.add(sheet); });
+      }
+      await fetchHoSoLinked('MaKhoanVay', maKV);
+    }
     catch (err) { if (loadingToken === modalToken) { toast(err.message, true); closeModal(); } return; }
     // Người dùng đã tự đóng modal "đang tải" (vd: bấm ✕) trước khi dữ liệu về xong — không tự mở lại.
     if (loadingToken !== modalToken) return;
@@ -303,13 +327,12 @@ function openLoanForm(record) {
 
           // File xác nhận ban đầu phải nằm trên hồ sơ TTHC đăng ký khoản vay.
           // Chỉ đồng bộ khi người dùng vừa chọn file mới, và chạy ngầm phía sau
-          // (không chặn màn hình) vì phải tải cả sheet Hồ sơ (~15.000 dòng) nên
-          // có thể mất nhiều thời gian — không được để việc này giữ modal Lưu
-          // đứng chờ, kẻo tưởng như file mới chưa được lưu.
+          // (không chặn màn hình) — không được để việc này giữ modal Lưu đứng
+          // chờ, kẻo tưởng như file mới chưa được lưu.
           if (fileChanged) {
             (async () => {
               try {
-                await ensureLoanHistoryData();
+                await fetchHoSoLinked('MaKhoanVay', data['MÃ SỐ KV']);
                 const initialCase = DB.HoSo.find(h => String(h.MaKhoanVay || '').trim() === String(data['MÃ SỐ KV']).trim() && isInitialLoanCase(h));
                 if (initialCase) {
                   const updatedCase = { ...initialCase, FileVanBan: data.FILE };
