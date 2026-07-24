@@ -39,13 +39,29 @@ const LOADED_SHEETS = new Set();
 let routeLoadToken = 0;
 
 // ---------------- API helpers ----------------
+// fetch() gốc không tự có thời hạn: nếu Apps Script bị treo/quá tải, request sẽ
+// chờ vô thời hạn và giao diện đứng hình (spinner quay mãi) mà không báo lỗi gì
+// để người dùng thử lại. Bọc timeout bằng AbortController để luôn có phản hồi.
+async function fetchWithTimeout(url, options, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    if (err.name === 'AbortError') throw new Error('Kết nối tới máy chủ quá lâu (quá ' + Math.round(timeoutMs / 1000) + 's). Vui lòng thử lại.');
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function apiGet(action, params = {}) {
   const url = new URL(API_URL);
   url.searchParams.set('action', action);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      const res = await fetch(url);
+      const res = await fetchWithTimeout(url, undefined, 45000);
       const json = await res.json();
       if (json.error) throw new Error(json.error);
       return json;
@@ -58,6 +74,7 @@ async function apiGet(action, params = {}) {
 
 async function apiPost(action, sheet, data, id, matchField, matchValue) {
   const body = JSON.stringify({ action, sheet, data, id, matchField, matchValue });
+  const timeoutMs = 45000;
   // Apps Script thỉnh thoảng đóng kết nối trước khi trình duyệt nhận phản hồi,
   // dù thao tác cập nhật vẫn có thể đã chạy xong. Với thao tác idempotent như
   // update, thử lại một lần để tránh báo "Failed to fetch" giả cho người dùng.
@@ -65,11 +82,11 @@ async function apiPost(action, sheet, data, id, matchField, matchValue) {
   let lastError;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const res = await fetch(API_URL, {
+      const res = await fetchWithTimeout(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body
-      });
+      }, timeoutMs);
       if (!res.ok) throw new Error(`Máy chủ phản hồi lỗi ${res.status}`);
       const json = await res.json();
       if (json.error) throw new Error(json.error);
@@ -439,7 +456,12 @@ function lookupCode(value) {
 window.addEventListener('hashchange',()=>route());
 
 // ---------------- Modal helper ----------------
+// Đổi giá trị mỗi lần mở/đóng modal để các thao tác bất đồng bộ (vd: đang tải
+// dữ liệu nền cho modal "loading") biết modal đó có còn đang mở hay người
+// dùng đã tự đóng rồi, tránh việc modal tự bật lại sau khi đã đóng.
+let modalToken = 0;
 function openModal(title, bodyHtml, onMount) {
+  modalToken++;
   const root = document.getElementById('modalRoot');
   root.innerHTML = `
     <div class="modal-backdrop" id="modalBackdrop">
@@ -452,7 +474,7 @@ function openModal(title, bodyHtml, onMount) {
   document.getElementById('modalBackdrop').addEventListener('click', e => { if (e.target.id === 'modalBackdrop') closeModal(); });
   if (onMount) onMount(document.getElementById('modalBody'));
 }
-function closeModal() { document.getElementById('modalRoot').innerHTML = ''; }
+function closeModal() { modalToken++; document.getElementById('modalRoot').innerHTML = ''; }
 
 // ---------------- Sap xep & phan trang (danh cho bang co nhieu du lieu: HoSo, KhachHang...) ----------------
 function parseVNDateSort(s) {
@@ -865,11 +887,11 @@ function fileToBase64(file) {
 }
 
 async function apiUploadFile(fileName, mimeType, base64Data, maHoSo) {
-  const res = await fetch(API_URL, {
+  const res = await fetchWithTimeout(API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({ action: 'uploadFile', fileName, mimeType, base64Data, maHoSo })
-  });
+  }, 90000);
   const json = await res.json();
   if (json.error) {
     const msg=String(json.error);

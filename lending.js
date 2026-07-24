@@ -174,6 +174,6 @@ function openLendingForm(record) {
 
 async function uploadLendingFile(file, maKV) {
   const base64Data=await fileToBase64(file);
-  const res=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'uploadLoanFile',fileName:file.name,mimeType:file.type,base64Data,maKhoanVay:maKV})});
+  const res=await fetchWithTimeout(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'uploadLoanFile',fileName:file.name,mimeType:file.type,base64Data,maKhoanVay:maKV})},90000);
   const json=await res.json();if(json.error)throw Error(json.error);return json;
 }
