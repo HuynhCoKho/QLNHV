@@ -30,20 +30,15 @@ const ROUTE_SHEETS = {
   tknton:['KhachHang','QG','TKNHTONN','BCMoTKnTONN','TyGia','TinhThanh','ChuyenVien'],
   // Hiện bảng khoản vay trước; dữ liệu lịch sử hồ sơ lớn được tải nền sau.
   khoanvay:['KhachHang','Khoanvay'],
-  // HoSo không nằm trong danh sách này: chỉ cần các hồ sơ có gắn mã khoản
-  // vay/cho vay/dự án (tải riêng qua ensureHoSoSpecial), không cần toàn bộ
-  // sheet Hồ sơ (~15.000 dòng).
+  // HoSo không nằm trong danh sách này: trang hiện dữ liệu ngay, rồi tự tải
+  // ngầm các hồ sơ có gắn mã khoản vay/cho vay/dự án phía sau (xem
+  // renderChoVay/renderDTRNNN), không cần chờ và không cần toàn bộ sheet Hồ
+  // sơ (~15.000 dòng).
   chovay:['KhachHang','ChoVay','TTHC','NhomNghiepVu'],
   dtrnnn:['KhachHang','QG','DTRNNN','DTRNNN_NDT','TTHC','NhomNghiepVu'],
   campuchia:['KhachHang','Campuchia','ChuyenVien'],
   vphc:['KhachHang','VPHC','HoSo','NhomNghiepVu','ChuyenVien']
 };
-// Các trang này chỉ cần hồ sơ có gắn mã khoản vay/cho vay/dự án, không cần
-// toàn bộ sheet Hồ sơ — tải song song bằng ensureHoSoSpecial() thay vì đưa
-// 'HoSo' vào ROUTE_SHEETS (sẽ kéo theo tải cả ~15.000 dòng).
-// Không gồm 'khoanvay': trang đó tự vẽ bảng ngay rồi mới tải hồ sơ nền sau
-// (xem renderKhoanVay trong loans.js), không chờ trước khi hiện trang.
-const ROUTES_NEEDING_HOSO_SPECIAL = ['chovay','dtrnnn'];
 const LOADED_SHEETS = new Set();
 let routeLoadToken = 0;
 
@@ -263,27 +258,24 @@ async function loadAll() {
 async function ensureRouteData(routeName,token) {
   const sheets=ROUTE_SHEETS[routeName]||ROUTE_SHEETS.hoso;
   const missing=sheets.filter(sheet=>!LOADED_SHEETS.has(sheet));
-  const needsHoSoSpecial=ROUTES_NEEDING_HOSO_SPECIAL.indexOf(routeName)!==-1 && !LOADED_SHEETS.has('HoSo');
-  if (missing.length) {
-    const title=document.getElementById('pageTitle');
-    if(token===routeLoadToken&&title)title.textContent='Đang tải dữ liệu cần thiết…';
-    try {
-      // Một request duy nhất để Apps Script chỉ mở Google Sheet một lần.
-      const params={sheets:missing.join(',')};
-      if(routeName==='hoso'&&missing.includes('HoSo'))params.lite='HoSo';
-      const bundle=await apiGet('batchList',params);
-      missing.forEach(sheet=>{DB[sheet]=Array.isArray(bundle[sheet])?bundle[sheet]:[];LOADED_SHEETS.add(sheet)});
-    } catch (batchError) {
-      // Tương thích với deployment cũ trong thời gian Apps Script chưa cập nhật.
-      await Promise.all(missing.map(async sheet=>{
-        try{DB[sheet]=await apiGet('list',{sheet});}
-        catch(err){if(sheet==='VPHC')DB.VPHC=[];else throw err;}
-        LOADED_SHEETS.add(sheet);
-      }));
-    }
-    normalizeIds();
+  if(!missing.length)return;
+  const title=document.getElementById('pageTitle');
+  if(token===routeLoadToken&&title)title.textContent='Đang tải dữ liệu cần thiết…';
+  try {
+    // Một request duy nhất để Apps Script chỉ mở Google Sheet một lần.
+    const params={sheets:missing.join(',')};
+    if(routeName==='hoso'&&missing.includes('HoSo'))params.lite='HoSo';
+    const bundle=await apiGet('batchList',params);
+    missing.forEach(sheet=>{DB[sheet]=Array.isArray(bundle[sheet])?bundle[sheet]:[];LOADED_SHEETS.add(sheet)});
+  } catch (batchError) {
+    // Tương thích với deployment cũ trong thời gian Apps Script chưa cập nhật.
+    await Promise.all(missing.map(async sheet=>{
+      try{DB[sheet]=await apiGet('list',{sheet});}
+      catch(err){if(sheet==='VPHC')DB.VPHC=[];else throw err;}
+      LOADED_SHEETS.add(sheet);
+    }));
   }
-  if (needsHoSoSpecial) await ensureHoSoSpecial();
+  normalizeIds();
 }
 
 let hoSoSpecialLoadPromise = null;

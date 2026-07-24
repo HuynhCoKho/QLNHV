@@ -42,6 +42,12 @@ function renderDTRNNN(){
     body.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>deleteInvestment(b.dataset.del));
   };
   ['investmentSearch','investmentStatus','investmentCountry','investmentOil'].forEach(id=>document.getElementById(id).addEventListener(id==='investmentSearch'?'input':'change',draw));draw();
+  // Không chặn bảng chính trong lúc tải hồ sơ liên quan phía sau.
+  if (!LOADED_SHEETS.has('HoSo') && !hoSoSpecialLoaded) {
+    ensureHoSoSpecial().then(() => {
+      if ((location.hash || '#hoso') === '#dtrnnn') renderDTRNNN();
+    }).catch(err => toast('Chưa tải được hồ sơ liên quan: ' + err.message, true));
+  }
 }
 
 function showInvestmentDetail(id){const p=DB.DTRNNN.find(x=>x['RECORD ID']===id);if(!p)return;const ids=investmentCustomerIds(p),hist=investmentHistory(p['MÃ DỰ ÁN']);openModal('Dự án '+p['MÃ DỰ ÁN'],`<div class="loan-summary"><div><span>Dự án</span><b>${esc(p['TÊN DỰ ÁN'])}</b><small>${esc(p['QUỐC GIA'])} · ${ids.length} nhà đầu tư</small></div><div><span>Vốn đầu tư / Đã chuyển</span><b>${esc(fmtNum(p['TỔNG VỐN ĐẦU TƯ (USD)']))} / ${esc(fmtNum(p['VỐN CHUYỂN RA (USD)']))} USD</b><small>${esc(p['TRẠNG THÁI'])}</small></div></div><div class="subsection"><b>Nhà đầu tư:</b> ${ids.map(x=>esc(khName(x)||x)).join(' · ')||'Chưa xác định'}</div><div class="table-wrap"><table><thead><tr><th>Số văn bản</th><th>Ngày VB</th><th>Hồ sơ TTHC</th><th>Vốn chuyển ra (USD)</th><th>Chuyên viên</th><th>File</th></tr></thead><tbody>${hist.length?hist.map(h=>`<tr><td><b>${esc(h.SoVanBan||'—')}</b></td><td class="mono">${esc(fmtDateVN(h.NgayVanBan))}</td><td>${esc(h.MaHoSo)}<div class="muted">${esc(tthcName(h.MaTTHC))}</div></td><td class="num">${esc(fmtNum(h.SoTienDangKyNguyenTe))}</td><td>${esc(cvName(h.MaCV)||h.MaCV||'—')}</td><td>${fileListLinksHtml(h.FileVanBan)}</td></tr>`).join(''):'<tr><td colspan="6" class="muted">Chưa có hồ sơ TTHC liên quan.</td></tr>'}</tbody></table></div><div class="modal-foot"><button class="btn btn-outline" id="investmentClose">Đóng</button></div>`,el=>el.querySelector('#investmentClose').onclick=closeModal)}

@@ -140,6 +140,12 @@ function renderChoVay() {
   document.getElementById('lendingPaid').onchange=draw;
   document.getElementById('lendingGuarantee').onchange=draw;
   draw();
+  // Không chặn bảng chính trong lúc tải hồ sơ liên quan phía sau.
+  if (!LOADED_SHEETS.has('HoSo') && !hoSoSpecialLoaded) {
+    ensureHoSoSpecial().then(() => {
+      if ((location.hash || '#hoso') === '#chovay') renderChoVay();
+    }).catch(err => toast('Chưa tải được hồ sơ liên quan: ' + err.message, true));
+  }
 }
 
 function showLendingHistory(maKV) {
