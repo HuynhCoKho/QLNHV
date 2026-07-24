@@ -215,8 +215,11 @@ function renderKhoanVay() {
 async function showLoanHistory(maKV) {
   if (!LOADED_SHEETS.has('HoSo')) {
     openModal('Đang tải lịch sử khoản vay', '<div class="empty-state"><h3>Đang tải dữ liệu lịch sử…</h3><p>Danh sách khoản vay vẫn sử dụng được trong lúc chờ.</p></div>');
+    const loadingToken = modalToken;
     try { await ensureLoanHistoryData(); }
-    catch (err) { toast(err.message, true); closeModal(); return; }
+    catch (err) { if (loadingToken === modalToken) { toast(err.message, true); closeModal(); } return; }
+    // Người dùng đã tự đóng modal "đang tải" (vd: bấm ✕) trước khi dữ liệu về xong — không tự mở lại.
+    if (loadingToken !== modalToken) return;
   }
   const master=DB.Khoanvay.find(r=>r['MÃ SỐ KV']===maKV), hist=loanHistory(maKV);
   const maKH=loanCustomerId(master), kh=master ? DB.KhachHang.find(k=>k.MaKH===maKH) : null;
@@ -320,6 +323,6 @@ function openLoanForm(record) {
 
 async function uploadLoanFile(file, maKV) {
   const base64Data=await fileToBase64(file);
-  const res=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'uploadLoanFile',fileName:file.name,mimeType:file.type,base64Data,maKhoanVay:maKV})});
+  const res=await fetchWithTimeout(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'uploadLoanFile',fileName:file.name,mimeType:file.type,base64Data,maKhoanVay:maKV})},90000);
   const json=await res.json();if(json.error)throw Error(json.error);return json;
 }
