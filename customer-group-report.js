@@ -1,54 +1,25 @@
 // Báo cáo danh sách khách hàng đã thực hiện TTHC theo nhóm nghiệp vụ.
 // Hồ sơ được tải ở chế độ rút gọn để báo cáo không làm chậm màn hình Khách hàng.
 
-async function ensureCustomerGroupReportData() {
-  const needed = ['TTHC', 'NhomNghiepVu', 'HoSo'];
-  const missing = needed.filter(sheet => !LOADED_SHEETS.has(sheet));
-  if (!missing.length) return;
+const CUSTOMER_GROUP_REPORT_CACHE = new Map();
 
-  const bundle = await apiGet('batchList', {
-    sheets: missing.join(','),
-    lite: missing.includes('HoSo') ? 'HoSo' : ''
-  });
-  missing.forEach(sheet => {
-    DB[sheet] = Array.isArray(bundle[sheet]) ? bundle[sheet] : [];
-    LOADED_SHEETS.add(sheet);
-  });
+async function ensureCustomerGroupReportGroups() {
+  if (LOADED_SHEETS.has('NhomNghiepVu')) return;
+  DB.NhomNghiepVu = await apiGet('list', { sheet: 'NhomNghiepVu' });
+  LOADED_SHEETS.add('NhomNghiepVu');
   normalizeIds();
 }
 
-function customerGroupReportRows(groupName) {
-  const procedureCodes = new Set(
-    DB.TTHC
-      .filter(row => sameText(row.NhomNghiepVu, groupName))
-      .map(row => String(row.MaTTHC || '').trim())
-      .filter(Boolean)
-  );
-  const exactCustomers = new Map();
-  const comparableCustomers = new Map();
-  const ambiguousComparableCodes = new Set();
-  DB.KhachHang.forEach(customer => {
-    const exactCode = String(customer.MaKH || '').trim();
-    if (exactCode && !exactCustomers.has(exactCode)) exactCustomers.set(exactCode, customer);
-    const comparableCode = comparableCustomerCode(exactCode);
-    if (!comparableCode) return;
-    if (comparableCustomers.has(comparableCode)) ambiguousComparableCodes.add(comparableCode);
-    else comparableCustomers.set(comparableCode, customer);
-  });
-  const customers = new Map();
-  DB.HoSo.forEach(caseRow => {
-    if (!procedureCodes.has(String(caseRow.MaTTHC || '').trim())) return;
-    const rawCode = String(caseRow.MaKH || '').trim();
-    const comparableCode = comparableCustomerCode(rawCode);
-    const customer = exactCustomers.get(rawCode)
-      || (!ambiguousComparableCodes.has(comparableCode) ? comparableCustomers.get(comparableCode) : null);
-    if (!customer) return;
-    const key = String(customer.MaKH || '').trim();
-    if (!customers.has(key)) customers.set(key, customer);
-  });
-  return [...customers.values()].sort((a, b) =>
+async function loadCustomerGroupReportRows(groupName) {
+  if (CUSTOMER_GROUP_REPORT_CACHE.has(groupName)) {
+    return CUSTOMER_GROUP_REPORT_CACHE.get(groupName);
+  }
+  const rows = await apiGet('customerGroupReport', { group: groupName });
+  const result = (Array.isArray(rows) ? rows : []).sort((a, b) =>
     String(a.TenKhachHang || '').localeCompare(String(b.TenKhachHang || ''), 'vi')
   );
+  CUSTOMER_GROUP_REPORT_CACHE.set(groupName, result);
+  return result;
 }
 
 function customerGroupReportAddress(row) {
@@ -103,7 +74,7 @@ async function openCustomerGroupReportOptions() {
       const viewButton = modal.querySelector('#customerGroupReportView');
       if (!groupsAlreadyLoaded) {
         try {
-          await ensureCustomerGroupReportData();
+          await ensureCustomerGroupReportGroups();
           select.innerHTML = `<option value="">— Chọn nhóm nghiệp vụ —</option>${customerGroupReportOptions()}`;
           select.disabled = false;
           viewButton.disabled = false;
@@ -119,10 +90,10 @@ async function openCustomerGroupReportOptions() {
         const oldLabel = viewButton.textContent;
         viewButton.textContent = 'Đang tổng hợp…';
         try {
-          await ensureCustomerGroupReportData();
           const groupName = String(new FormData(event.target).get('group') || '').trim();
           if (!groupName) throw new Error('Vui lòng chọn nhóm nghiệp vụ.');
-          showCustomerGroupReport(groupName);
+          const rows = await loadCustomerGroupReportRows(groupName);
+          showCustomerGroupReport(groupName, rows);
         } catch (err) {
           toast(err.message, true);
           viewButton.disabled = false;
@@ -141,8 +112,7 @@ function customerGroupReportOptions() {
     .join('');
 }
 
-function showCustomerGroupReport(groupName) {
-  const rows = customerGroupReportRows(groupName);
+function showCustomerGroupReport(groupName, rows) {
   openModal('Danh sách khách hàng — ' + groupName, `
     <div id="customerGroupReportDocument" class="customer-group-report-document">
       <div class="quarter-report-title">
