@@ -2,10 +2,59 @@
 // Hồ sơ được tải ở chế độ rút gọn để báo cáo không làm chậm màn hình Khách hàng.
 
 const CUSTOMER_GROUP_REPORT_CACHE = new Map();
+const CUSTOMER_GROUP_REPORT_SHEET_ID = '1K8QPs8vgFDcxjRuj0J5Y8H9XyUWArsdcwzJbzfiinog';
+
+function loadCustomerGroupReportGroupsFromSheet() {
+  return new Promise((resolve, reject) => {
+    const callbackName = `qlnhvGroupReport_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const script = document.createElement('script');
+    const cleanup = () => {
+      delete window[callbackName];
+      script.remove();
+    };
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('Danh mục nhóm nghiệp vụ phản hồi quá chậm.'));
+    }, 10000);
+    window[callbackName] = response => {
+      clearTimeout(timeout);
+      try {
+        if (!response || response.status !== 'ok') throw new Error('Google Sheets không trả dữ liệu.');
+        const rows = response.table?.rows || [];
+        const headers = (rows[0]?.c || []).map(cell => String(cell?.v || '').trim());
+        const data = rows.slice(1).map(row => Object.fromEntries(headers.map((header, index) => [
+          header,
+          row.c?.[index]?.v ?? ''
+        ]))).filter(row => row.TenNhom);
+        cleanup();
+        resolve(data);
+      } catch (error) {
+        cleanup();
+        reject(error);
+      }
+    };
+    script.onerror = () => {
+      clearTimeout(timeout);
+      cleanup();
+      reject(new Error('Không kết nối được Google Sheets.'));
+    };
+    const query = new URLSearchParams({
+      tqx: `responseHandler:${callbackName}`,
+      sheet: 'NhomNghiepVu',
+      tq: 'select A,B,C,D'
+    });
+    script.src = `https://docs.google.com/spreadsheets/d/${CUSTOMER_GROUP_REPORT_SHEET_ID}/gviz/tq?${query}`;
+    document.head.appendChild(script);
+  });
+}
 
 async function ensureCustomerGroupReportGroups() {
   if (LOADED_SHEETS.has('NhomNghiepVu')) return;
-  DB.NhomNghiepVu = await apiGet('list', { sheet: 'NhomNghiepVu' });
+  try {
+    DB.NhomNghiepVu = await loadCustomerGroupReportGroupsFromSheet();
+  } catch (error) {
+    DB.NhomNghiepVu = await apiGet('list', { sheet: 'NhomNghiepVu' });
+  }
   LOADED_SHEETS.add('NhomNghiepVu');
   normalizeIds();
 }
