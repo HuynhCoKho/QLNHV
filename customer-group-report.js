@@ -3,8 +3,9 @@
 
 const CUSTOMER_GROUP_REPORT_CACHE = new Map();
 const CUSTOMER_GROUP_REPORT_SHEET_ID = '1K8QPs8vgFDcxjRuj0J5Y8H9XyUWArsdcwzJbzfiinog';
+let CUSTOMER_GROUP_REPORT_SOURCE_PROMISE = null;
 
-function loadCustomerGroupReportGroupsFromSheet() {
+function loadCustomerGroupReportSheet(sheetName, query) {
   return new Promise((resolve, reject) => {
     const callbackName = `qlnhvGroupReport_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const script = document.createElement('script');
@@ -20,12 +21,11 @@ function loadCustomerGroupReportGroupsFromSheet() {
       clearTimeout(timeout);
       try {
         if (!response || response.status !== 'ok') throw new Error('Google Sheets không trả dữ liệu.');
-        const rows = response.table?.rows || [];
-        const headers = (rows[0]?.c || []).map(cell => String(cell?.v || '').trim());
-        const data = rows.slice(1).map(row => Object.fromEntries(headers.map((header, index) => [
+        const headers = (response.table?.cols || []).map(column => String(column?.label || '').trim());
+        const data = (response.table?.rows || []).map(row => Object.fromEntries(headers.map((header, index) => [
           header,
-          row.c?.[index]?.v ?? ''
-        ]))).filter(row => row.TenNhom);
+          row.c?.[index]?.f ?? row.c?.[index]?.v ?? ''
+        ]))).filter(row => Object.values(row).some(value => value !== '' && value !== null));
         cleanup();
         resolve(data);
       } catch (error) {
@@ -40,8 +40,9 @@ function loadCustomerGroupReportGroupsFromSheet() {
     };
     const query = new URLSearchParams({
       tqx: `responseHandler:${callbackName}`,
-      sheet: 'NhomNghiepVu',
-      tq: 'select A,B,C,D'
+      sheet: sheetName,
+      headers: '1',
+      tq: query
     });
     script.src = `https://docs.google.com/spreadsheets/d/${CUSTOMER_GROUP_REPORT_SHEET_ID}/gviz/tq?${query}`;
     document.head.appendChild(script);
@@ -51,7 +52,7 @@ function loadCustomerGroupReportGroupsFromSheet() {
 async function ensureCustomerGroupReportGroups() {
   if (LOADED_SHEETS.has('NhomNghiepVu')) return;
   try {
-    DB.NhomNghiepVu = await loadCustomerGroupReportGroupsFromSheet();
+    DB.NhomNghiepVu = await loadCustomerGroupReportSheet('NhomNghiepVu', 'select A,B,C,D');
   } catch (error) {
     DB.NhomNghiepVu = await apiGet('list', { sheet: 'NhomNghiepVu' });
   }
@@ -59,11 +60,40 @@ async function ensureCustomerGroupReportGroups() {
   normalizeIds();
 }
 
+function loadCustomerGroupReportSources() {
+  if (!CUSTOMER_GROUP_REPORT_SOURCE_PROMISE) {
+    CUSTOMER_GROUP_REPORT_SOURCE_PROMISE = Promise.all([
+      loadCustomerGroupReportSheet('TTHC', 'select A,D'),
+      loadCustomerGroupReportSheet('HoSo', 'select B,C'),
+      loadCustomerGroupReportSheet('KhachHang', 'select A,E,F,G,H,I,J,K')
+    ]).catch(error => {
+      CUSTOMER_GROUP_REPORT_SOURCE_PROMISE = null;
+      throw error;
+    });
+  }
+  return CUSTOMER_GROUP_REPORT_SOURCE_PROMISE;
+}
+
 async function loadCustomerGroupReportRows(groupName) {
   if (CUSTOMER_GROUP_REPORT_CACHE.has(groupName)) {
     return CUSTOMER_GROUP_REPORT_CACHE.get(groupName);
   }
-  const rows = await apiGet('customerGroupReport', { group: groupName });
+  let rows;
+  try {
+    const [procedures, dossiers, customers] = await loadCustomerGroupReportSources();
+    const wantedGroup = String(groupName || '').trim().toLocaleLowerCase('vi');
+    const procedureCodes = new Set(procedures
+      .filter(row => String(row.NhomNghiepVu || '').trim().toLocaleLowerCase('vi') === wantedGroup)
+      .map(row => String(row.MaTTHC || '').trim())
+      .filter(Boolean));
+    const customerCodes = new Set(dossiers
+      .filter(row => procedureCodes.has(String(row.MaTTHC || '').trim()))
+      .map(row => comparableCustomerCode(row.MaKH))
+      .filter(Boolean));
+    rows = customers.filter(row => customerCodes.has(comparableCustomerCode(row.MaKH)));
+  } catch (error) {
+    rows = await apiGet('customerGroupReport', { group: groupName });
+  }
   const result = (Array.isArray(rows) ? rows : []).sort((a, b) =>
     String(a.TenKhachHang || '').localeCompare(String(b.TenKhachHang || ''), 'vi')
   );
