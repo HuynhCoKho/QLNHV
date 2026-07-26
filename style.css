@@ -550,3 +550,20 @@ body:not(.auth-locked) .auth-gate{
 .hsr-subtotal td,.hsr-province-total td,.hsr-grand td{font-weight:700}
 .hsr-province-total td{background:#f3f1eb}.hsr-grand td{background:#dedbd2}
 .hsr-check{font-size:18px;font-weight:700;color:#13795b}
+
+/* Báo cáo khách hàng theo nhóm nghiệp vụ */
+.customer-group-report-preview{max-height:66vh}
+.customer-group-report-table{table-layout:fixed}
+.customer-group-report-table th,.customer-group-report-table td{
+  white-space:normal;
+  overflow-wrap:anywhere;
+  vertical-align:top;
+}
+.customer-group-report-table th:nth-child(1){width:52px}
+.customer-group-report-table th:nth-child(2){width:125px}
+.customer-group-report-table th:nth-child(3){width:120px}
+.customer-group-report-table th:nth-child(4){min-width:230px}
+.customer-group-report-table th:nth-child(5){min-width:280px}
+.customer-group-report-table th:nth-child(6){width:145px}
+.customer-group-report-table th:nth-child(7){width:190px}
+.modal:has(.customer-group-report-document){max-width:1500px;width:calc(100vw - 32px)}

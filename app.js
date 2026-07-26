@@ -1068,7 +1068,10 @@ async function collectFileFieldValue(container, uploader) {
 // MODULE: KHACH HANG
 // ============================================================
 function renderKhachHang() {
-  document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" id="btnNewKH">+ Khách hàng mới</button>`;
+  document.getElementById('topbarActions').innerHTML = `
+    <button class="btn btn-outline" id="btnKHGroupReport">Báo cáo theo nhóm nghiệp vụ</button>
+    <button class="btn btn-primary" id="btnNewKH">+ Khách hàng mới</button>`;
+  document.getElementById('btnKHGroupReport').onclick = () => openCustomerGroupReportOptions();
   document.getElementById('btnNewKH').onclick = () => openKHForm();
   const view = document.getElementById('view');
   const uniqueValues = (field) => [...new Set(DB.KhachHang.map(r => String(r[field] || '').trim()).filter(Boolean))]
