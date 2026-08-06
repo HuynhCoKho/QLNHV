@@ -38,13 +38,13 @@ function loadCustomerGroupReportSheet(sheetName, query) {
       cleanup();
       reject(new Error('Không kết nối được Google Sheets.'));
     };
-    const query = new URLSearchParams({
+    const queryParams = new URLSearchParams({
       tqx: `responseHandler:${callbackName}`,
       sheet: sheetName,
       headers: '1',
       tq: query
     });
-    script.src = `https://docs.google.com/spreadsheets/d/${CUSTOMER_GROUP_REPORT_SHEET_ID}/gviz/tq?${query}`;
+    script.src = `https://docs.google.com/spreadsheets/d/${CUSTOMER_GROUP_REPORT_SHEET_ID}/gviz/tq?${queryParams}`;
     document.head.appendChild(script);
   });
 }
