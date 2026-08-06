@@ -59,9 +59,17 @@ async function fetchWithTimeout(url, options, timeoutMs) {
   }
 }
 
+// Mật khẩu đã nhập đúng ở màn hình đăng nhập (auth.js) được lưu lại làm mã
+// xác thực gửi kèm mọi request — Apps Script sẽ từ chối request nếu thiếu
+// hoặc sai mã này, thay vì mở công khai cho bất kỳ ai biết URL Web App.
+function authToken() {
+  try { return sessionStorage.getItem('qlnhv-auth-token') || ''; } catch (e) { return ''; }
+}
+
 async function apiGet(action, params = {}) {
   const url = new URL(API_URL);
   url.searchParams.set('action', action);
+  url.searchParams.set('token', authToken());
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
@@ -77,7 +85,7 @@ async function apiGet(action, params = {}) {
 }
 
 async function apiPost(action, sheet, data, id, matchField, matchValue) {
-  const body = JSON.stringify({ action, sheet, data, id, matchField, matchValue });
+  const body = JSON.stringify({ action, sheet, data, id, matchField, matchValue, token: authToken() });
   const timeoutMs = 45000;
   // Apps Script thỉnh thoảng đóng kết nối trước khi trình duyệt nhận phản hồi,
   // dù thao tác cập nhật vẫn có thể đã chạy xong. Với thao tác idempotent như
@@ -923,7 +931,7 @@ async function apiUploadFile(fileName, mimeType, base64Data, maHoSo) {
   const res = await fetchWithTimeout(API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action: 'uploadFile', fileName, mimeType, base64Data, maHoSo })
+    body: JSON.stringify({ action: 'uploadFile', fileName, mimeType, base64Data, maHoSo, token: authToken() })
   }, 90000);
   const json = await res.json();
   if (json.error) {
