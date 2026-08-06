@@ -49,6 +49,25 @@ function loadCustomerGroupReportSheet(sheetName, query) {
   });
 }
 
+// Một số nhóm nghiệp vụ không chỉ được xác định qua hồ sơ TTHC — khách hàng
+// có thể đã được nhập thẳng vào bảng nghiệp vụ tương ứng (dữ liệu cũ chuyển
+// qua, chưa từng tạo hồ sơ TTHC). Với các nhóm này, gộp thêm mã khách hàng
+// lấy trực tiếp từ bảng nghiệp vụ, không chỉ suy ra từ Hồ sơ + TTHC.
+const CUSTOMER_GROUP_REPORT_EXTRA_SOURCES = {
+  'Campuchia': { sheet: 'Campuchia', column: 'C' },
+  'Tài khoản ngoại tệ ở nước ngoài': { sheet: 'TKNHTONN', column: 'B' },
+  'Vay, trả nợ nước ngoài': { sheet: 'Khoanvay', column: 'B' },
+  'Cho vay ra nước ngoài': { sheet: 'ChoVay', column: 'B' },
+  'Đầu tư ra nước ngoài': { sheet: 'DTRNNN_NDT', column: 'C' }
+};
+
+async function loadCustomerGroupReportExtraCustomerIds(groupName) {
+  const extra = CUSTOMER_GROUP_REPORT_EXTRA_SOURCES[groupName];
+  if (!extra) return new Set();
+  const rows = await loadCustomerGroupReportSheet(extra.sheet, `select ${extra.column}`);
+  return new Set(rows.map(row => comparableCustomerCode(Object.values(row)[0])).filter(Boolean));
+}
+
 async function ensureCustomerGroupReportGroups() {
   if (LOADED_SHEETS.has('NhomNghiepVu')) return;
   try {
@@ -90,6 +109,8 @@ async function loadCustomerGroupReportRows(groupName) {
       .filter(row => procedureCodes.has(String(row.MaTTHC || '').trim()))
       .map(row => comparableCustomerCode(row.MaKH))
       .filter(Boolean));
+    const extraCodes = await loadCustomerGroupReportExtraCustomerIds(groupName);
+    extraCodes.forEach(code => customerCodes.add(code));
     rows = customers.filter(row => customerCodes.has(comparableCustomerCode(row.MaKH)));
   } catch (error) {
     rows = await apiGet('customerGroupReport', { group: groupName });
