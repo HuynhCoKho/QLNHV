@@ -38,18 +38,30 @@ html,body{ height:100%; }
 body{
   margin:0;
   font-family:'Inter', system-ui, sans-serif;
-  background:var(--paper);
+  isolation:isolate;
+  background:
+    linear-gradient(90deg, rgba(187,236,223,.52) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(187,236,223,.38) 1px, transparent 1px),
+    radial-gradient(circle at 50% 32%, rgba(255,255,255,.64), transparent 28%),
+    radial-gradient(circle at 84% 18%, rgba(132,223,191,.34), transparent 28%),
+    radial-gradient(circle at 10% 82%, rgba(70,173,126,.24), transparent 32%),
+    linear-gradient(135deg,#dcfff5 0%,#bdf0e4 52%,#e4fff6 100%);
+  background-size:118px 118px,118px 118px,auto,auto,auto,auto;
   color:var(--ink);
   -webkit-font-smoothing:antialiased;
 }
 
-.app{ display:flex; min-height:100vh; }
+body::before,body::after{content:"";position:fixed;pointer-events:none;z-index:0}
+body::before{left:-86px;top:72px;width:270px;height:390px;border-radius:54% 46% 58% 42%/36% 45% 55% 64%;background:radial-gradient(ellipse at 36% 36%,rgba(255,255,255,.24),transparent 24%),radial-gradient(ellipse at 5% 26%,rgba(220,255,244,.78) 0 7%,transparent 8%),radial-gradient(ellipse at 98% 42%,rgba(220,255,244,.66) 0 8%,transparent 9%),linear-gradient(120deg,rgba(149,225,195,.94),rgba(15,111,91,.92) 58%,rgba(4,76,67,.96));box-shadow:0 24px 54px rgba(2,74,61,.26);opacity:.72;transform:rotate(138deg)}
+body::after{right:-82px;bottom:24px;width:300px;height:410px;border-radius:52% 48% 58% 42%/36% 45% 55% 64%;background:radial-gradient(ellipse at 36% 36%,rgba(255,255,255,.22),transparent 24%),radial-gradient(ellipse at 6% 38%,rgba(220,255,244,.72) 0 8%,transparent 9%),radial-gradient(ellipse at 98% 58%,rgba(220,255,244,.54) 0 8%,transparent 9%),linear-gradient(120deg,rgba(149,225,195,.92),rgba(15,111,91,.9) 58%,rgba(4,76,67,.96));box-shadow:0 24px 54px rgba(2,74,61,.22);opacity:.62;transform:rotate(-58deg)}
+
+.app{ display:flex; min-height:100vh; position:relative; z-index:1; }
 
 /* ---------------- Sidebar ---------------- */
 .sidebar{
   width:248px;
   flex-shrink:0;
-  background:var(--ink);
+  background:linear-gradient(155deg,rgba(5,63,46,.96),rgba(8,112,86,.92));
   color:#EFEDE4;
   display:flex;
   flex-direction:column;
@@ -57,6 +69,7 @@ body{
   position:sticky;
   top:0;
   height:100vh;
+  box-shadow:18px 0 34px rgba(5,71,57,.14),inset -1px 0 rgba(255,255,255,.12);
 }
 .brand{ display:flex; align-items:center; gap:12px; padding:0 8px 24px; border-bottom:1px solid rgba(255,255,255,.12); margin-bottom:20px; }
 .brand-mark{
@@ -134,7 +147,7 @@ body{
 .btn-sm{ padding:5px 10px; font-size:12.5px; border-radius:6px; }
 
 /* ---------------- Card / Table ---------------- */
-.card{ background:var(--paper-2); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; }
+.card{ background:linear-gradient(145deg,rgba(255,255,255,.86),rgba(232,255,246,.68)); border:1px solid rgba(117,178,166,.42); border-radius:14px; overflow:hidden; box-shadow:0 18px 38px rgba(5,71,57,.12),inset 0 1px 0 rgba(255,255,255,.72); backdrop-filter:blur(12px); }
 .table-wrap{ overflow-x:auto; }
 table{ width:100%; border-collapse:collapse; font-size:13.5px; }
 thead th{
@@ -406,21 +419,25 @@ body.auth-locked #toastRoot{
   min-height:100vh;
   padding:24px;
   background:
-    linear-gradient(120deg, rgba(30,42,68,.94), rgba(31,122,92,.88)),
-    radial-gradient(circle at 24% 18%, rgba(255,255,255,.16), transparent 30%),
-    var(--ink);
+    linear-gradient(90deg, rgba(187,236,223,.52) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(187,236,223,.38) 1px, transparent 1px),
+    radial-gradient(circle at 50% 32%, rgba(255,255,255,.72), transparent 28%),
+    radial-gradient(circle at 84% 18%, rgba(132,223,191,.42), transparent 28%),
+    linear-gradient(135deg,#dcfff5 0%,#bdf0e4 52%,#e4fff6 100%);
+  background-size:118px 118px,118px 118px,auto,auto,auto;
 }
 body:not(.auth-locked) .auth-gate{
   display:none;
 }
 .auth-card{
   width:min(420px, 100%);
-  background:var(--paper-2);
+  background:linear-gradient(145deg,rgba(255,255,255,.9),rgba(232,255,246,.76));
   color:var(--ink);
-  border:1px solid rgba(255,255,255,.36);
-  border-radius:8px;
-  box-shadow:0 24px 80px rgba(0,0,0,.28);
+  border:1px solid rgba(117,178,166,.42);
+  border-radius:18px;
+  box-shadow:0 8px 0 rgba(143,201,178,.72),0 28px 64px rgba(5,71,57,.2),inset 0 1px 0 rgba(255,255,255,.82);
   padding:30px;
+  backdrop-filter:blur(14px);
 }
 .auth-mark{
   width:44px;
