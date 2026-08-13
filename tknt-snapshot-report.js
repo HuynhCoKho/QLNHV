@@ -26,7 +26,7 @@
   function buildTKNTSnapshotReport(cutoffValue){
     const cutoff = dateAtEnd(cutoffValue);
     if (!cutoff) throw new Error('Ngày chốt không hợp lệ.');
-    const byProvince = new Map();
+    const byProvince = new Map(), allCountries = new Set();
     DB.TKNHTONN.filter(a => accountExistsAt(a, cutoff)).forEach(account => {
       const customer = DB.KhachHang.find(k => String(k.MaKH) === String(account['MÃ ĐƠN VỊ']));
       if (!customer) return;
@@ -35,12 +35,14 @@
       const row = byProvince.get(province);
       row.companies.add(String(customer.MaKH));
       const country = String(account['QUỐC GIA'] || '').trim();
-      if (country) row.countries.add(country);
+      if (country) { row.countries.add(country); allCountries.add(country); }
     });
     const preferred = v => provinceKey(v).includes('dong nai') ? 0 : provinceKey(v).includes('ho chi minh') ? 1 : 2;
     const rows = [...byProvince.values()].map(x => ({province:x.province, companies:x.companies.size, countries:x.countries.size}))
       .sort((a,b) => preferred(a.province)-preferred(b.province) || a.province.localeCompare(b.province,'vi'));
-    return {cutoff, rows, companyTotal:rows.reduce((n,x)=>n+x.companies,0), countryTotal:rows.reduce((n,x)=>n+x.countries,0)};
+    // Tong cong quoc gia dem theo ma quoc gia duy nhat tren toan bao cao.
+    // Vi du Cuba o ca TP.HCM va Dong Nai chi tinh mot lan.
+    return {cutoff, rows, companyTotal:rows.reduce((n,x)=>n+x.companies,0), countryTotal:allCountries.size};
   }
 
   function reportHeader(){
