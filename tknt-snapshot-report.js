@@ -13,8 +13,9 @@
     const licensed = dateAtEnd(toISODate(account['NGÀY GP']));
     if (!licensed || licensed > cutoff) return false;
     const closed = dateAtEnd(toISODate(account['NGÀY ĐÓNG']));
-    const activeNow = norm(account['TRẠNG THÁI']) === 'ĐANG HOẠT ĐỘNG';
-    return (activeNow && (!closed || closed > cutoff)) || (!!closed && closed > cutoff);
+    const status = norm(account['TRẠNG THÁI']);
+    const reportableNow = status === 'ĐANG HOẠT ĐỘNG' || status === 'CHƯA MỞ';
+    return (reportableNow && (!closed || closed > cutoff)) || (!!closed && closed > cutoff);
   }
 
   function provinceName(customer){
