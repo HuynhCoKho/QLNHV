@@ -1,120 +1,22 @@
-// Báo cáo danh sách khách hàng đã thực hiện TTHC theo nhóm nghiệp vụ.
-// Hồ sơ được tải ở chế độ rút gọn để báo cáo không làm chậm màn hình Khách hàng.
+// Báo cáo danh sách khách hàng theo nhóm nghiệp vụ.
 
 const CUSTOMER_GROUP_REPORT_CACHE = new Map();
-const CUSTOMER_GROUP_REPORT_SHEET_ID = '1K8QPs8vgFDcxjRuj0J5Y8H9XyUWArsdcwzJbzfiinog';
-let CUSTOMER_GROUP_REPORT_SOURCE_PROMISE = null;
-
-function loadCustomerGroupReportSheet(sheetName, query) {
-  return new Promise((resolve, reject) => {
-    const callbackName = `qlnhvGroupReport_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const script = document.createElement('script');
-    const cleanup = () => {
-      delete window[callbackName];
-      script.remove();
-    };
-    const timeout = setTimeout(() => {
-      cleanup();
-      reject(new Error('Danh mục nhóm nghiệp vụ phản hồi quá chậm.'));
-    }, 10000);
-    window[callbackName] = response => {
-      clearTimeout(timeout);
-      try {
-        if (!response || response.status !== 'ok') throw new Error('Google Sheets không trả dữ liệu.');
-        const headers = (response.table?.cols || []).map(column => String(column?.label || '').trim());
-        const data = (response.table?.rows || []).map(row => Object.fromEntries(headers.map((header, index) => [
-          header,
-          row.c?.[index]?.f ?? row.c?.[index]?.v ?? ''
-        ]))).filter(row => Object.values(row).some(value => value !== '' && value !== null));
-        cleanup();
-        resolve(data);
-      } catch (error) {
-        cleanup();
-        reject(error);
-      }
-    };
-    script.onerror = () => {
-      clearTimeout(timeout);
-      cleanup();
-      reject(new Error('Không kết nối được Google Sheets.'));
-    };
-    const queryParams = new URLSearchParams({
-      tqx: `responseHandler:${callbackName}`,
-      sheet: sheetName,
-      headers: '1',
-      tq: query
-    });
-    script.src = `https://docs.google.com/spreadsheets/d/${CUSTOMER_GROUP_REPORT_SHEET_ID}/gviz/tq?${queryParams}`;
-    document.head.appendChild(script);
-  });
-}
-
-// Một số nhóm nghiệp vụ không chỉ được xác định qua hồ sơ TTHC — khách hàng
-// có thể đã được nhập thẳng vào bảng nghiệp vụ tương ứng (dữ liệu cũ chuyển
-// qua, chưa từng tạo hồ sơ TTHC). Với các nhóm này, gộp thêm mã khách hàng
-// lấy trực tiếp từ bảng nghiệp vụ, không chỉ suy ra từ Hồ sơ + TTHC.
-const CUSTOMER_GROUP_REPORT_EXTRA_SOURCES = {
-  'Campuchia': { sheet: 'Campuchia', column: 'C' },
-  'Tài khoản ngoại tệ ở nước ngoài': { sheet: 'TKNHTONN', column: 'B' },
-  'Vay, trả nợ nước ngoài': { sheet: 'Khoanvay', column: 'B' },
-  'Cho vay ra nước ngoài': { sheet: 'ChoVay', column: 'B' },
-  'Đầu tư ra nước ngoài': { sheet: 'DTRNNN_NDT', column: 'C' }
-};
-
-async function loadCustomerGroupReportExtraCustomerIds(groupName) {
-  const extra = CUSTOMER_GROUP_REPORT_EXTRA_SOURCES[groupName];
-  if (!extra) return new Set();
-  const rows = await loadCustomerGroupReportSheet(extra.sheet, `select ${extra.column}`);
-  return new Set(rows.map(row => comparableCustomerCode(Object.values(row)[0])).filter(Boolean));
-}
 
 async function ensureCustomerGroupReportGroups() {
   if (LOADED_SHEETS.has('NhomNghiepVu')) return;
-  try {
-    DB.NhomNghiepVu = await loadCustomerGroupReportSheet('NhomNghiepVu', 'select A,B,C,D');
-  } catch (error) {
-    DB.NhomNghiepVu = await apiGet('list', { sheet: 'NhomNghiepVu' });
-  }
+  DB.NhomNghiepVu = await apiGet('list', { sheet: 'NhomNghiepVu' });
   LOADED_SHEETS.add('NhomNghiepVu');
   normalizeIds();
-}
-
-function loadCustomerGroupReportSources() {
-  if (!CUSTOMER_GROUP_REPORT_SOURCE_PROMISE) {
-    CUSTOMER_GROUP_REPORT_SOURCE_PROMISE = Promise.all([
-      loadCustomerGroupReportSheet('TTHC', 'select A,D'),
-      loadCustomerGroupReportSheet('HoSo', 'select B,C'),
-      loadCustomerGroupReportSheet('KhachHang', 'select A,E,F,G,H,I,J,K')
-    ]).catch(error => {
-      CUSTOMER_GROUP_REPORT_SOURCE_PROMISE = null;
-      throw error;
-    });
-  }
-  return CUSTOMER_GROUP_REPORT_SOURCE_PROMISE;
 }
 
 async function loadCustomerGroupReportRows(groupName) {
   if (CUSTOMER_GROUP_REPORT_CACHE.has(groupName)) {
     return CUSTOMER_GROUP_REPORT_CACHE.get(groupName);
   }
-  let rows;
-  try {
-    const [procedures, dossiers, customers] = await loadCustomerGroupReportSources();
-    const wantedGroup = String(groupName || '').trim().toLocaleLowerCase('vi');
-    const procedureCodes = new Set(procedures
-      .filter(row => String(row.NhomNghiepVu || '').trim().toLocaleLowerCase('vi') === wantedGroup)
-      .map(row => String(row.MaTTHC || '').trim())
-      .filter(Boolean));
-    const customerCodes = new Set(dossiers
-      .filter(row => procedureCodes.has(String(row.MaTTHC || '').trim()))
-      .map(row => comparableCustomerCode(row.MaKH))
-      .filter(Boolean));
-    const extraCodes = await loadCustomerGroupReportExtraCustomerIds(groupName);
-    extraCodes.forEach(code => customerCodes.add(code));
-    rows = customers.filter(row => customerCodes.has(comparableCustomerCode(row.MaKH)));
-  } catch (error) {
-    rows = await apiGet('customerGroupReport', { group: groupName });
-  }
+  // Apps Script tổng hợp mã khách hàng từ Hồ sơ/TTHC và toàn bộ bảng nghiệp vụ
+  // thuộc nhóm, sau đó mới đối chiếu với danh mục KhachHang. Không đọc gviz trực
+  // tiếp vì bảng tính riêng tư sẽ trả 401 và làm báo cáo rơi về dữ liệu cũ.
+  const rows = await apiGet('customerGroupReport', { group: groupName });
   const result = (Array.isArray(rows) ? rows : []).sort((a, b) =>
     String(a.TenKhachHang || '').localeCompare(String(b.TenKhachHang || ''), 'vi')
   );
@@ -216,7 +118,7 @@ function showCustomerGroupReport(groupName, rows) {
   openModal('Danh sách khách hàng — ' + groupName, `
     <div id="customerGroupReportDocument" class="customer-group-report-document">
       <div class="quarter-report-title">
-        <b>DANH SÁCH KHÁCH HÀNG THỰC HIỆN THỦ TỤC HÀNH CHÍNH</b>
+        <b>DANH SÁCH KHÁCH HÀNG THEO NHÓM NGHIỆP VỤ</b>
         <span>Nhóm nghiệp vụ: ${esc(groupName)} · ${rows.length} khách hàng</span>
       </div>
       <div class="table-wrap customer-group-report-preview">
@@ -282,7 +184,7 @@ function customerGroupReportPrintableHtml(groupName, rows, autoPrint) {
       .num{text-align:center}.mono{font-family:"Courier New",monospace}
       .total{margin-top:8px;font-weight:bold}
     </style></head><body>
-      <h1>DANH SÁCH KHÁCH HÀNG THỰC HIỆN THỦ TỤC HÀNH CHÍNH</h1>
+      <h1>DANH SÁCH KHÁCH HÀNG THEO NHÓM NGHIỆP VỤ</h1>
       <h2>Nhóm nghiệp vụ: ${esc(groupName)}</h2>
       ${customerGroupReportTable(rows)}
       <div class="total">Tổng cộng: ${rows.length} khách hàng</div>
