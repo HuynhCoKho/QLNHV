@@ -494,6 +494,13 @@ function uniqueHoSoRecords(rows = DB.HoSo) {
 function lookupCode(value) {
   return String(value || '').split(' — ')[0].trim();
 }
+// Tra ve dung ma dang luu trong danh muc KhachHang. Nho vay ma da chon tu
+// datalist luon giu ca so 0 dau, khong phu thuoc vao cach trinh duyet hien thi.
+function lookupCustomerCode(value) {
+  const entered = lookupCode(value);
+  const customer = findCustomerByCode(entered);
+  return customer ? String(customer.MaKH).trim() : entered;
+}
 window.addEventListener('hashchange',()=>route());
 
 // ---------------- Modal helper ----------------
