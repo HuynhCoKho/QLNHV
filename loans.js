@@ -37,7 +37,23 @@ async function syncLoanFromCase(h) {
   const maKV = String(h && h.MaKhoanVay || '').trim();
   if (!maKV) return;
 
-  const existing = DB.Khoanvay.find(r => String(r['MÃ SỐ KV'] || '').trim() === maKV);
+  // Trang Hồ sơ không tải toàn bộ bảng Khoanvay để tránh làm chậm hơn 2.400
+  // dòng. Vì vậy không được kết luận "chưa có" chỉ từ DB cục bộ: một mã
+  // khoản vay có thể đã được xác nhận đăng ký và tiếp tục xuất hiện trong
+  // nhiều hồ sơ đăng ký thay đổi.
+  let existing = DB.Khoanvay.find(r => String(r['MÃ SỐ KV'] || '').trim() === maKV);
+  if (!existing) {
+    try {
+      existing = await apiGet('get', { sheet: 'Khoanvay', id: maKV });
+      if (existing && !DB.Khoanvay.some(r => String(r['MÃ SỐ KV'] || '').trim() === maKV)) {
+        DB.Khoanvay.push(existing);
+      }
+    } catch (err) {
+      // Chỉ tạo mới khi server xác nhận đúng là chưa có mã khoản vay này.
+      if (!/Khong tim thay ban ghi|Không tìm thấy bản ghi/i.test(String(err && err.message || err))) throw err;
+      existing = null;
+    }
+  }
   const amount = parseNum(h.SoTienVayNguyenTe);
   const data = existing ? { ...existing } : {
     'MÃ SỐ KV': maKV,

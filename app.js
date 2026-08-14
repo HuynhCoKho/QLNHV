@@ -910,10 +910,19 @@ function openHoSoForm(rec, afterSave, forceNew = false) {
         }
         // Khong tai lai toan bo hon 15.000 ho so sau moi lan luu.
         // Du lieu vua luu da co san trong form va duoc cap nhat truc tiep vao bo nho.
-        await syncLoanFromCase(data);
-        await syncLendingFromCase(data);
-        await syncInvestmentFromCase(data);
-        toast('Đã lưu hồ sơ ' + data.MaHoSo);
+        // Hồ sơ đã được lưu thành công ở thời điểm này. Đồng bộ các bảng tổng
+        // hợp là bước sau, không được biến lỗi đồng bộ thành thông báo "chưa
+        // lưu" khiến người dùng bấm lại và tạo/kiểm tra trùng sai nghiệp vụ.
+        const syncResults = await Promise.allSettled([
+          syncLoanFromCase(data),
+          syncLendingFromCase(data),
+          syncInvestmentFromCase(data)
+        ]);
+        const syncErrors = syncResults.filter(x => x.status === 'rejected').map(x => x.reason && x.reason.message || String(x.reason));
+        toast(syncErrors.length
+          ? 'Đã lưu hồ sơ ' + data.MaHoSo + '; chưa đồng bộ được bảng tổng hợp: ' + syncErrors.join(' · ')
+          : 'Đã lưu hồ sơ ' + data.MaHoSo,
+          syncErrors.length > 0);
         closeModal();
         if (typeof afterSave === 'function') afterSave(data); else renderHoSo();
       } catch (err) {
