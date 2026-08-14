@@ -19,10 +19,10 @@ function hsrProcedure(row){
 function hsrBuild(fromValue,toValue){
   const from=hsrParseDate(fromValue),to=hsrParseDate(toValue);if(!from||!to)throw Error('Ngày báo cáo không hợp lệ.');to.setHours(23,59,59,999);if(from>to)throw Error('Từ ngày không được lớn hơn đến ngày.');
   const sourceRows = typeof uniqueHoSoRecords === 'function' ? uniqueHoSoRecords(DB.HoSo) : DB.HoSo;
-  const rows=sourceRows.filter(r=>{const d=hsrParseDate(r.NgayTiepNhan);return d&&d>=from&&d<=to;});
+  const rows=sourceRows.filter(r=>{const d=hsrParseDate(normalizedHoSoReceivedDate(r));return d&&d>=from&&d<=to;});
   const provinces=new Map();
   rows.forEach(row=>{const province=hsrProvince(row),procedure=hsrProcedure(row),pKey=provinceKey(province),tKey=procedure.code+'|'+procedure.name;if(!provinces.has(pKey))provinces.set(pKey,{name:province,procedures:new Map(),rows:[]});const p=provinces.get(pKey);if(!p.procedures.has(tKey))p.procedures.set(tKey,{...procedure,rows:[]});p.procedures.get(tKey).rows.push(row);p.rows.push(row)});
-  return {from,to,rows,provinces:[...provinces.values()].sort((a,b)=>a.name.localeCompare(b.name,'vi')).map(p=>({...p,procedures:[...p.procedures.values()].sort((a,b)=>(a.code+' '+a.name).localeCompare(b.code+' '+b.name,'vi')).map(t=>({...t,rows:t.rows.sort((a,b)=>parseVNDateSort(a.NgayTiepNhan)-parseVNDateSort(b.NgayTiepNhan)||String(a.MaHoSo).localeCompare(String(b.MaHoSo),'vi'))}))}))};
+  return {from,to,rows,provinces:[...provinces.values()].sort((a,b)=>a.name.localeCompare(b.name,'vi')).map(p=>({...p,procedures:[...p.procedures.values()].sort((a,b)=>(a.code+' '+a.name).localeCompare(b.code+' '+b.name,'vi')).map(t=>({...t,rows:t.rows.sort((a,b)=>hoSoReceivedSort(a)-hoSoReceivedSort(b)||String(a.MaHoSo).localeCompare(String(b.MaHoSo),'vi'))}))}))};
 }
 function hsrCounts(rows){const counts=Object.fromEntries(TRANGTHAI_HOSO.map(s=>[s,0]));rows.forEach(r=>{const status=String(r.TrangThai||'').trim();if(counts[status]!==undefined)counts[status]++});return counts}
 function hsrUSDAmount(row){

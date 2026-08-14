@@ -183,6 +183,46 @@ function toVNDate(iso) {
   return value;
 }
 function fmtDateVN(value) { return toVNDate(value); }
+
+// Một phần dữ liệu Hồ sơ cũ được Sheets hiểu theo locale MM/dd/yyyy khi
+// ngày và tháng đều <= 12. Mã hồ sơ bắt đầu bằng YYMMDD nên có thể dùng làm
+// mốc để xác định cách hiểu đúng của Ngày tiếp nhận.
+function normalizedHoSoReceivedDate(record) {
+  const value = fmtDateVN(record && record.NgayTiepNhan);
+  const dateMatch = String(value || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const idMatch = String(record && record.MaHoSo || '').trim().match(/^(\d{2})(\d{2})(\d{2})-/);
+  if (!dateMatch || !idMatch) return value;
+
+  const day = Number(dateMatch[1]);
+  const month = Number(dateMatch[2]);
+  const year = Number(dateMatch[3]);
+  const idYear = 2000 + Number(idMatch[1]);
+  const idMonth = Number(idMatch[2]);
+  const idDay = Number(idMatch[3]);
+  if (day === month || day > 12 || month > 12 || year !== idYear) return value;
+
+  const utcDate = (y, m, d) => {
+    const ms = Date.UTC(y, m - 1, d);
+    const check = new Date(ms);
+    return check.getUTCFullYear() === y && check.getUTCMonth() === m - 1 && check.getUTCDate() === d ? ms : null;
+  };
+  const anchor = utcDate(idYear, idMonth, idDay);
+  const asDayMonth = utcDate(year, month, day);
+  const asMonthDay = utcDate(year, day, month);
+  if (anchor === null || asDayMonth === null || asMonthDay === null) return value;
+
+  // Giữ hồ sơ đã đúng như 260811 -> 11/08/2026, nhưng sửa 260512 từ
+  // 05/12/2026 thành 12/05/2026 vì cách hiểu này gần ngày tạo mã hơn.
+  if (Math.abs(asMonthDay - anchor) < Math.abs(asDayMonth - anchor)) {
+    return `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}/${year}`;
+  }
+  return value;
+}
+function hoSoReceivedISO(record) { return toISODate(normalizedHoSoReceivedDate(record)); }
+function hoSoReceivedSort(record) {
+  const iso = hoSoReceivedISO(record);
+  return iso ? Date.parse(iso + 'T00:00:00Z') : 0;
+}
 function esc(s) { return (s === undefined || s === null) ? '' : String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function sameText(a, b) { return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase(); }
 function toast(msg, isError) {
@@ -351,6 +391,7 @@ function normalizeIds() {
     if (r.NguyenTeChoVay) r.NguyenTeChoVay = String(r.NguyenTeChoVay);
     if (r.NguyenTeDauTu) r.NguyenTeDauTu = String(r.NguyenTeDauTu);
     ['NgayTiepNhan','NgayHenTra','NgayVanBan','NgayYeuCauBoSung'].forEach(k => { r[k] = fmtDateVN(r[k]); });
+    r.NgayTiepNhan = normalizedHoSoReceivedDate(r);
   });
   DB.Khoanvay.forEach(r => {
     r['MÃ SỐ KV'] = String(r['MÃ SỐ KV'] || '');
@@ -623,14 +664,14 @@ function renderHoSo() {
     const filtered = hoSoUnique.filter(r => {
       const matchQ = !q || r.MaHoSo.toLowerCase().includes(q) || khName(r.MaKH).toLowerCase().includes(q);
       const matchT = !ft || r.TrangThai === ft;
-      const received = toISODate(r.NgayTiepNhan);
+      const received = hoSoReceivedISO(r);
       const matchFrom = !fromDate || (received && received >= fromDate);
       const matchTo = !toDate || (received && received <= toDate);
       const matchSpecialist = !specialist || String(r.MaCV || '') === specialist;
       return matchQ && matchT && matchFrom && matchTo && matchSpecialist;
     });
     // Ho so moi nhat (theo ngay tiep nhan) hien len tren
-    filtered.sort((a, b) => parseVNDateSort(b.NgayTiepNhan) - parseVNDateSort(a.NgayTiepNhan));
+    filtered.sort((a, b) => hoSoReceivedSort(b) - hoSoReceivedSort(a) || String(b.MaHoSo).localeCompare(String(a.MaHoSo), 'vi'));
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     if (page > totalPages) page = totalPages;
@@ -647,7 +688,7 @@ function renderHoSo() {
         <td class="mono">${esc(r.MaHoSo)}</td>
         <td>${esc(khName(r.MaKH))}<div class="muted mono" style="font-size:11px">${esc(r.MaKH)}</div></td>
         <td>${esc(tthcName(r.MaTTHC))}</td>
-        <td class="mono">${esc(fmtDateVN(r.NgayTiepNhan))}</td>
+        <td class="mono">${esc(normalizedHoSoReceivedDate(r))}</td>
         <td class="mono">${esc(fmtDateVN(r.NgayHenTra))}</td>
         <td>${esc(cvName(r.MaCV) || r.MaCV)}</td>
         <td>${statusBadge(r.TrangThai)}</td>
@@ -685,7 +726,7 @@ const HOSO_DETAIL_FIELDS = [
   ['MaHoSo', 'Mã số hồ sơ'],
   ['MaKH', 'Mã khách hàng', (v) => `${esc(v)} — ${esc(khName(v))}`],
   ['MaTTHC', 'Thủ tục hành chính', (v) => `${esc(v)} — ${esc(tthcName(v))}`],
-  ['NgayTiepNhan', 'Ngày tiếp nhận'],
+  ['NgayTiepNhan', 'Ngày tiếp nhận', (v, r) => esc(normalizedHoSoReceivedDate(r))],
   ['NgayHenTra', 'Ngày hẹn trả'],
   ['MaCV', 'Chuyên viên', (v) => `${esc(v)} — ${esc(cvName(v))}`],
   ['TrangThai', 'Trạng thái', (v) => statusBadge(v)],
@@ -740,7 +781,7 @@ function openHoSoForm(rec, afterSave, forceNew = false) {
           </div></div>
 
         <div class="field"><label>Ngày tiếp nhận hồ sơ</label>
-          <input type="date" name="NgayTiepNhan" value="${toISODate(rec.NgayTiepNhan)}" required /></div>
+          <input type="date" name="NgayTiepNhan" value="${hoSoReceivedISO(rec)}" required /></div>
         <div class="field"><label>Ngày hẹn trả kết quả</label>
           <input type="date" name="NgayHenTra" value="${toISODate(rec.NgayHenTra)}" /></div>
 
