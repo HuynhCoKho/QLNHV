@@ -184,6 +184,93 @@ function loanHistory(maKV) {
   return items.sort((a,b) => parseVNDateSort(b.ngayVB) - parseVNDateSort(a.ngayVB));
 }
 
+function loanHistoryExportData(maKV) {
+  const master = DB.Khoanvay.find(r => String(r['MÃ SỐ KV'] || '').trim() === maKV);
+  const maKH = loanCustomerId(master);
+  const customer = DB.KhachHang.find(k => String(k.MaKH || '').trim() === maKH);
+  return { maKV, master, maKH, customer, rows: loanHistory(maKV) };
+}
+
+function loanHistoryExportFileStem(maKV) {
+  return ('Lich-su-khoan-vay-' + String(maKV || '')).replace(/[^a-zA-Z0-9._-]+/g, '-');
+}
+
+function loanHistoryExportFileCell(raw) {
+  const files = parseFileList(raw);
+  return files.length ? files.map(f => `<a href="${esc(f.url)}">${esc(f.name || 'Mở file')}</a>`).join('<br>') : '—';
+}
+
+function loanHistoryExportTable(data) {
+  return `<table><colgroup><col style="width:4%"><col style="width:12%"><col style="width:9%"><col style="width:25%"><col style="width:11%"><col style="width:10%"><col style="width:14%"><col style="width:15%"></colgroup>
+    <thead><tr><th>TT</th><th>SỐ VĂN BẢN</th><th>NGÀY VĂN BẢN</th><th>TTHC / HỒ SƠ</th><th>GIÁ TRỊ</th><th>CHUYÊN VIÊN</th><th>LOẠI VĂN BẢN</th><th>FILE</th></tr></thead>
+    <tbody>${data.rows.map((x,i) => `<tr><td class="center">${i+1}</td><td><b>${esc(x.soVB || '—')}</b></td><td class="center">${esc(fmtDateVN(x.ngayVB) || '—')}</td><td><b>${esc(x.maTTHC || '—')}</b> · ${esc(x.maHS || '—')}<div class="muted">${esc(x.tenTTHC || '')}</div></td><td class="right">${esc(fmtNum(x.giaTri))} ${esc(x.tien || '')}</td><td>${esc(x.cv || '—')}</td><td>${esc(x.loaiVB || x.source || '—')}</td><td class="file-cell">${loanHistoryExportFileCell(x.file)}</td></tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function loanHistoryExportBody(data) {
+  const master = data.master || {};
+  return `<div class="report-page"><h1>LỊCH SỬ KHOẢN VAY NƯỚC NGOÀI</h1><div class="report-code">Mã số khoản vay: <b>${esc(data.maKV)}</b></div>
+    <div class="summary"><div><span>DOANH NGHIỆP</span><b>${esc(data.customer && data.customer.TenKhachHang || '—')}</b><small>${esc(data.maKH || '—')}</small></div><div><span>KHOẢN VAY / DƯ NỢ</span><b>${esc(fmtNum(master['KIM NGẠCH VAY']))} / ${esc(fmtNum(master['DƯ NỢ']))} ${esc(master['ĐỒNG TIỀN'] || '')}</b><small>${loanIsPaid(master) ? 'Đã trả hết nợ' : 'Chưa hết nợ'} · ${loanHasGovernmentGuarantee(master) ? 'Có CP bảo lãnh' : 'Không CP bảo lãnh'} · ${data.rows.length} văn bản/hồ sơ</small></div></div>
+    ${loanHistoryExportTable(data)}<div class="report-foot">Tổng cộng: ${data.rows.length} văn bản/hồ sơ liên quan.</div></div>`;
+}
+
+function loanHistoryExportStyles(scope) {
+  const p = scope ? scope + ' ' : '';
+  const root = scope || 'body';
+  return `@page{size:A4 landscape;margin:9mm}${p}*{box-sizing:border-box}${root}{margin:0;color:#17243d;font:10px Arial,sans-serif}${p}.report-page{width:100%}${p}h1{text-align:center;font-size:17px;margin:0 0 4px}${p}.report-code{text-align:center;font-size:12px;margin:0 0 10px}${p}.summary{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}${p}.summary>div{border:1px solid #c9cfd8;border-radius:6px;padding:7px 9px}${p}.summary span,${p}.summary small{display:block}${p}.summary span{font-size:8px;font-weight:bold;color:#53617a}${p}.summary b{display:block;font-size:11px;margin:3px 0}${p}.summary small{font-size:9px}${p}table{width:100%;border-collapse:collapse;table-layout:fixed}${p}thead{display:table-header-group}${p}tr{page-break-inside:avoid}${p}th,${p}td{border:1px solid #727b89;padding:4px;vertical-align:top;overflow-wrap:anywhere}${p}th{background:#e8edf2;text-align:center;font-size:9px}${p}.center{text-align:center}${p}.right{text-align:right}${p}.muted{font-size:8px;color:#596579;margin-top:2px}${p}.file-cell{font-size:8px}${p}.file-cell a{color:#174f87}${p}.report-foot{margin-top:7px;font-weight:bold;text-align:right}`;
+}
+
+function loanHistoryExportDocument(data, autoPrint) {
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Lịch sử khoản vay ${esc(data.maKV)}</title><style>${loanHistoryExportStyles()}</style></head><body>${loanHistoryExportBody(data)}${autoPrint ? '<script>window.onload=()=>window.print()<\\/script>' : ''}</body></html>`;
+}
+
+function loanHistoryDownload(content, type, fileName) {
+  const blob = new Blob(['\ufeff' + content], { type });
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = fileName; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportLoanHistoryWord(data) {
+  loanHistoryDownload(loanHistoryExportDocument(data, false), 'application/msword;charset=utf-8', loanHistoryExportFileStem(data.maKV) + '.doc');
+}
+
+function exportLoanHistoryExcel(data) {
+  loanHistoryDownload(loanHistoryExportDocument(data, false), 'application/vnd.ms-excel;charset=utf-8', loanHistoryExportFileStem(data.maKV) + '.xls');
+}
+
+function printLoanHistoryA4(data) {
+  const popup = window.open('', '_blank');
+  if (!popup) return toast('Trình duyệt đang chặn cửa sổ in. Vui lòng cho phép pop-up rồi thử lại.', true);
+  popup.document.write(loanHistoryExportDocument(data, true)); popup.document.close();
+}
+
+async function exportLoanHistoryPdf(data, button) {
+  if (typeof html2pdf === 'undefined') return toast('Thư viện tạo PDF chưa tải xong. Vui lòng thử lại.', true);
+  const oldText = button && button.textContent;
+  if (button) { button.disabled = true; button.textContent = 'Đang tạo PDF…'; }
+  const box = document.createElement('div');
+  // html2canvas không chụp ổn định phần tử bị đẩy quá xa khỏi viewport.
+  // Đặt mẫu ở gốc trang nhưng dưới giao diện, đồng thời scope toàn bộ CSS.
+  box.className = 'loan-history-export';
+  box.style.cssText = 'position:absolute;left:0;top:0;z-index:-1;width:277mm;background:#fff;padding:0;color:#17243d';
+  box.innerHTML = `<style>${loanHistoryExportStyles('.loan-history-export')}</style>${loanHistoryExportBody(data)}`;
+  document.body.appendChild(box);
+  try {
+    const worker = html2pdf().set({margin:[9,9,10,9],filename:loanHistoryExportFileStem(data.maKV)+'.pdf',image:{type:'jpeg',quality:.98},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},jsPDF:{unit:'mm',format:'a4',orientation:'landscape'},pagebreak:{mode:['css','legacy'],avoid:'tr'}}).from(box).toPdf();
+    const pdf = await worker.get('pdf'), pages = pdf.internal.getNumberOfPages();
+    for (let page=1; page<=pages; page++) {
+      pdf.setPage(page); pdf.setFontSize(8); pdf.setTextColor(80);
+      pdf.text(`${page}/${pages}`, 288, 205, {align:'right'});
+    }
+    await worker.save();
+  } catch (err) {
+    toast('Không tạo được PDF: ' + err.message, true);
+  } finally {
+    box.remove(); if (button) { button.disabled = false; button.textContent = oldText; }
+  }
+}
+
 function openLoanHistoryLookup() {
   const options = DB.Khoanvay.slice()
     .sort((a,b) => String(a['MÃ SỐ KV'] || '').localeCompare(String(b['MÃ SỐ KV'] || ''), 'vi'))
@@ -324,7 +411,12 @@ async function showLoanHistory(maKV) {
     <div style="text-align:right;margin-bottom:10px"><button class="btn btn-primary btn-sm" id="addLoanHistory">+ Thêm lịch sử</button></div>
     <div class="table-wrap loan-history-table"><table><thead><tr><th>Số văn bản</th><th>Ngày VB</th><th>TTHC / Hồ sơ</th><th>Giá trị</th><th>Chuyên viên</th><th>Loại văn bản</th><th>File</th><th></th></tr></thead><tbody>
     ${hist.length?hist.map((x,i)=>`<tr><td><b>${esc(x.soVB||'—')}</b></td><td class="mono">${esc(fmtDateVN(x.ngayVB))}</td><td><b>${esc(x.maTTHC||'—')}</b> · ${esc(x.maHS||'—')}<div class="muted">${esc(x.tenTTHC)}</div></td><td class="num">${esc(fmtNum(x.giaTri))} ${esc(x.tien)}</td><td>${esc(x.cv||'—')}</td><td>${esc(x.loaiVB||x.source)}</td><td>${fileListLinksHtml(x.file)}</td><td class="cell-actions"><button class="btn btn-outline btn-sm" data-hist-edit="${i}">Sửa</button><button class="btn btn-danger btn-sm" data-hist-del="${i}">Xóa</button></td></tr>`).join(''):`<tr><td colspan="8" class="muted">Chưa có văn bản lịch sử.</td></tr>`}
-    </tbody></table></div><div class="modal-foot"><button class="btn btn-outline" id="loanClose">Đóng</button></div>`, el=>{
+    </tbody></table></div><div class="modal-foot"><button class="btn btn-outline" id="loanHistoryWord">Xuất Word</button><button class="btn btn-outline" id="loanHistoryExcel">Xuất Excel</button><button class="btn btn-outline" id="loanHistoryPdf">Xuất PDF</button><button class="btn btn-primary" id="loanHistoryPrint">In A4</button><button class="btn btn-outline" id="loanClose">Đóng</button></div>`, el=>{
+      const exportData = loanHistoryExportData(maKV);
+      el.querySelector('#loanHistoryWord').onclick=()=>exportLoanHistoryWord(exportData);
+      el.querySelector('#loanHistoryExcel').onclick=()=>exportLoanHistoryExcel(exportData);
+      el.querySelector('#loanHistoryPdf').onclick=event=>exportLoanHistoryPdf(exportData,event.currentTarget);
+      el.querySelector('#loanHistoryPrint').onclick=()=>printLoanHistoryA4(exportData);
       el.querySelector('#loanClose').onclick=closeModal;
       el.querySelector('#addLoanHistory').onclick=()=>openHoSoForm({MaKH,MaKhoanVay:maKV,TrangThai:'Đã xử lý',MaCV:'CK',NguyenTeVay:master&&master['ĐỒNG TIỀN'],SoTienVayNguyenTe:master&&master['KIM NGẠCH VAY']},()=>showLoanHistory(maKV),true);
       el.querySelectorAll('[data-hist-edit]').forEach(b=>b.onclick=async()=>{
