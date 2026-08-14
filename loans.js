@@ -145,7 +145,8 @@ function loanHistory(maKV) {
   const master = DB.Khoanvay.find(r => r['MÃ SỐ KV'] === maKV);
   const items = DB.HoSo.filter(h => String(h.MaKhoanVay || '').trim() === maKV && isLoanProcedure(h.MaTTHC))
     .map(h => ({
-      kind: 'hoso', source: 'Hồ sơ TTHC', soVB: h.SoVanBan, ngayVB: h.NgayVanBan, maHS: h.MaHoSo, maKV: h.MaKhoanVay,
+      kind: 'hoso', source: 'Hồ sơ TTHC', loaiVB: isInitialLoanCase(h) ? 'XÁC NHẬN ĐĂNG KÝ' : 'ĐĂNG KÝ THAY ĐỔI',
+      soVB: h.SoVanBan, ngayVB: h.NgayVanBan, maHS: h.MaHoSo, maKV: h.MaKhoanVay, maTTHC: h.MaTTHC,
       tenTTHC: tthcName(h.MaTTHC), giaTri: h.SoTienVayNguyenTe, tien: h.NguyenTeVay,
       cv: cvName(h.MaCV) || h.MaCV, file: h.FileVanBan
     }));
@@ -172,7 +173,7 @@ function loanHistory(maKV) {
   if (master && (master['SỐ VBXN'] || master['NGÀY VBXN'] || master.FILE)
       && !initial) {
     items.push({
-      kind: 'manual', source: 'Nhập thủ công', soVB: master['SỐ VBXN'], ngayVB: master['NGÀY VBXN'],
+      kind: 'manual', source: 'Nhập thủ công', loaiVB: 'XÁC NHẬN ĐĂNG KÝ', soVB: master['SỐ VBXN'], ngayVB: master['NGÀY VBXN'],
       maHS: '', tenTTHC: 'Xác nhận đăng ký ban đầu', giaTri: master['KIM NGẠCH VAY'],
       tien: master['ĐỒNG TIỀN'], cv: '', file: master.FILE
     });
@@ -180,8 +181,48 @@ function loanHistory(maKV) {
   return items.sort((a,b) => parseVNDateSort(b.ngayVB) - parseVNDateSort(a.ngayVB));
 }
 
+function openLoanHistoryLookup() {
+  const options = DB.Khoanvay.slice()
+    .sort((a,b) => String(a['MÃ SỐ KV'] || '').localeCompare(String(b['MÃ SỐ KV'] || ''), 'vi'))
+    .map(r => {
+      const ma = String(r['MÃ SỐ KV'] || '').trim();
+      const company = khName(loanCustomerId(r));
+      return `<option value="${esc(ma)}">${esc(company || ma)}</option>`;
+    }).join('');
+  openModal('Tra cứu lịch sử khoản vay', `<form id="loanHistoryLookupForm">
+    <div class="form-grid">
+      <div class="field span-2 mono"><label>Mã số khoản vay</label><input id="loanHistoryLookupCode" list="loanHistoryLookupOptions" placeholder="Nhập hoặc chọn mã số khoản vay" autocomplete="off" required><datalist id="loanHistoryLookupOptions">${options}</datalist><span class="hint">Nhập mã rồi bấm Tra cứu hoặc nhấn Enter để xem toàn bộ lần xác nhận đăng ký và đăng ký thay đổi.</span></div>
+    </div>
+    <div class="modal-foot"><button type="button" class="btn btn-outline" id="loanHistoryLookupCancel">Hủy</button><button class="btn btn-primary" id="loanHistoryLookupSubmit">Tra cứu</button></div>
+  </form>`, el => {
+    const input = el.querySelector('#loanHistoryLookupCode');
+    el.querySelector('#loanHistoryLookupCancel').onclick = closeModal;
+    el.querySelector('form').onsubmit = async event => {
+      event.preventDefault();
+      const button = el.querySelector('#loanHistoryLookupSubmit');
+      const maKV = String(input.value || '').split(' — ')[0].trim();
+      if (!maKV) return;
+      button.disabled = true; button.textContent = 'Đang tra cứu…';
+      try {
+        let master = DB.Khoanvay.find(r => String(r['MÃ SỐ KV'] || '').trim() === maKV);
+        if (!master) {
+          master = await apiGet('get', { sheet: 'Khoanvay', id: maKV });
+          DB.Khoanvay.push(master);
+          normalizeIds();
+        }
+        await showLoanHistory(String(master['MÃ SỐ KV'] || maKV).trim());
+      } catch (err) {
+        toast('Không tìm thấy khoản vay "' + maKV + '".', true);
+        button.disabled = false; button.textContent = 'Tra cứu'; input.focus();
+      }
+    };
+    setTimeout(() => input.focus(), 0);
+  });
+}
+
 function renderKhoanVay() {
-  document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" id="btnNewLoan">+ Khoản vay mới</button>`;
+  document.getElementById('topbarActions').innerHTML = `<button class="btn btn-outline" id="btnLoanHistoryLookup">Tra cứu lịch sử khoản vay</button><button class="btn btn-primary" id="btnNewLoan">+ Khoản vay mới</button>`;
+  document.getElementById('btnLoanHistoryLookup').onclick = openLoanHistoryLookup;
   document.getElementById('btnNewLoan').onclick = () => openLoanForm();
   const customers = new Set(DB.Khoanvay.map(loanCustomerId).filter(Boolean));
   const currencies = new Set(DB.Khoanvay.map(r => r['ĐỒNG TIỀN']).filter(Boolean));
@@ -275,8 +316,8 @@ async function showLoanHistory(maKV) {
   const maKH=loanCustomerId(master), kh=master ? DB.KhachHang.find(k=>k.MaKH===maKH) : null;
   openModal(`Lịch sử khoản vay ${maKV}`, `<div class="loan-summary"><div><span>Doanh nghiệp</span><b>${esc(kh?kh.TenKhachHang:'—')}</b><small class="mono">${esc(maKH)}</small></div><div><span>Khoản vay / Dư nợ</span><b>${esc(fmtNum(master&&master['KIM NGẠCH VAY']))} / ${esc(fmtNum(master&&master['DƯ NỢ']))} ${esc(master&&master['ĐỒNG TIỀN'])}</b><small>${loanIsPaid(master)?'Đã trả hết nợ':'Chưa hết nợ'} · ${loanHasGovernmentGuarantee(master)?'Có CP bảo lãnh':'Không CP bảo lãnh'} · ${hist.length} văn bản/hồ sơ liên quan</small></div></div>
     <div style="text-align:right;margin-bottom:10px"><button class="btn btn-primary btn-sm" id="addLoanHistory">+ Thêm lịch sử</button></div>
-    <div class="table-wrap loan-history-table"><table><thead><tr><th>Số văn bản</th><th>Ngày VB</th><th>Hồ sơ TTHC</th><th>Giá trị</th><th>Chuyên viên</th><th>Loại</th><th>File</th><th></th></tr></thead><tbody>
-    ${hist.length?hist.map((x,i)=>`<tr><td><b>${esc(x.soVB||'—')}</b></td><td class="mono">${esc(fmtDateVN(x.ngayVB))}</td><td>${esc(x.maHS||'—')}<div class="muted">${esc(x.tenTTHC)}</div></td><td class="num">${esc(fmtNum(x.giaTri))} ${esc(x.tien)}</td><td>${esc(x.cv||'—')}</td><td>${esc(x.source)}</td><td>${fileListLinksHtml(x.file)}</td><td class="cell-actions"><button class="btn btn-outline btn-sm" data-hist-edit="${i}">Sửa</button><button class="btn btn-danger btn-sm" data-hist-del="${i}">Xóa</button></td></tr>`).join(''):`<tr><td colspan="8" class="muted">Chưa có văn bản lịch sử.</td></tr>`}
+    <div class="table-wrap loan-history-table"><table><thead><tr><th>Số văn bản</th><th>Ngày VB</th><th>TTHC / Hồ sơ</th><th>Giá trị</th><th>Chuyên viên</th><th>Loại văn bản</th><th>File</th><th></th></tr></thead><tbody>
+    ${hist.length?hist.map((x,i)=>`<tr><td><b>${esc(x.soVB||'—')}</b></td><td class="mono">${esc(fmtDateVN(x.ngayVB))}</td><td><b>${esc(x.maTTHC||'—')}</b> · ${esc(x.maHS||'—')}<div class="muted">${esc(x.tenTTHC)}</div></td><td class="num">${esc(fmtNum(x.giaTri))} ${esc(x.tien)}</td><td>${esc(x.cv||'—')}</td><td>${esc(x.loaiVB||x.source)}</td><td>${fileListLinksHtml(x.file)}</td><td class="cell-actions"><button class="btn btn-outline btn-sm" data-hist-edit="${i}">Sửa</button><button class="btn btn-danger btn-sm" data-hist-del="${i}">Xóa</button></td></tr>`).join(''):`<tr><td colspan="8" class="muted">Chưa có văn bản lịch sử.</td></tr>`}
     </tbody></table></div><div class="modal-foot"><button class="btn btn-outline" id="loanClose">Đóng</button></div>`, el=>{
       el.querySelector('#loanClose').onclick=closeModal;
       el.querySelector('#addLoanHistory').onclick=()=>openHoSoForm({MaKH,MaKhoanVay:maKV,TrangThai:'Đã xử lý',MaCV:'CK',NguyenTeVay:master&&master['ĐỒNG TIỀN'],SoTienVayNguyenTe:master&&master['KIM NGẠCH VAY']},()=>showLoanHistory(maKV),true);
