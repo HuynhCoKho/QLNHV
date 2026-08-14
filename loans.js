@@ -143,7 +143,10 @@ async function fetchHoSoLinked(field, value) {
 
 function loanHistory(maKV) {
   const master = DB.Khoanvay.find(r => r['MÃ SỐ KV'] === maKV);
-  const items = DB.HoSo.filter(h => String(h.MaKhoanVay || '').trim() === maKV && isLoanProcedure(h.MaTTHC))
+  // MaKhoanVay đã là liên kết nghiệp vụ trực tiếp. Không lọc thêm bằng danh
+  // mục TTHC vì hồ sơ lịch sử có thể dùng mã/thủ tục cũ hoặc danh mục đã đổi,
+  // khiến các lần đăng ký trước bị loại khỏi lịch sử dù cùng một khoản vay.
+  const items = DB.HoSo.filter(h => String(h.MaKhoanVay || '').trim() === maKV)
     .map(h => ({
       kind: 'hoso', source: 'Hồ sơ TTHC', loaiVB: isInitialLoanCase(h) ? 'XÁC NHẬN ĐĂNG KÝ' : 'ĐĂNG KÝ THAY ĐỔI',
       soVB: h.SoVanBan, ngayVB: h.NgayVanBan, maHS: h.MaHoSo, maKV: h.MaKhoanVay, maTTHC: h.MaTTHC,
@@ -297,7 +300,10 @@ function renderKhoanVay() {
 }
 
 async function showLoanHistory(maKV) {
-  if (!LOADED_SHEETS.has('HoSo') && !hoSoSpecialLoaded) {
+  // Luôn lấy trực tiếp đúng các hồ sơ của mã khoản vay đang xem. Bộ dữ liệu
+  // hosoSpecial tải nền có thể chưa hoàn tất khi người dùng mở tra cứu, nên
+  // chỉ dựa vào cờ hoSoSpecialLoaded có thể làm lịch sử hiện thiếu dòng cũ.
+  if (!LOADED_SHEETS.has('HoSo')) {
     openModal('Đang tải lịch sử khoản vay', '<div class="empty-state"><h3>Đang tải dữ liệu lịch sử…</h3><p>Danh sách khoản vay vẫn sử dụng được trong lúc chờ.</p></div>');
     const loadingToken = modalToken;
     try {
