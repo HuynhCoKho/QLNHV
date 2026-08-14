@@ -1038,7 +1038,9 @@ function wireFileFields(root) {
     input.addEventListener('change', () => {
       Array.from(input.files || []).forEach(file => pending.push({ file, name: file.name }));
       drawPending();
-      syncInputFiles();
+      // File đã được giữ trong mảng `pending` và hiển thị thành chip ở trên.
+      // Xóa lựa chọn native để không hiện cùng một tên file hai lần (chip + ô file).
+      input.value = '';
     });
     container._fileFieldApi = {
       getExisting: () => existing.slice(),
