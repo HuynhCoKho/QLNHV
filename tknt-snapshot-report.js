@@ -112,17 +112,23 @@
     return intro + blocks;
   }
 
+  // Dung <table> thay vi CSS grid: Word (xuat .doc dang HTML) khong hieu
+  // display:grid, se lam 2 khoi header/footer bi vo bo cuc. <table> la cach
+  // duy nhat vua chay dung tren trinh duyet (xem/in/PDF) vua chay dung tren
+  // Word.
   function reportHeader(){
-    return `<div class="snapshot-head"><div>NGÂN HÀNG NHÀ NƯỚC<br>VIỆT NAM<br><b>CHI NHÁNH KHU VỰC 2</b><br><b class="under">PHÒNG QUẢN LÝ NGOẠI HỐI VÀNG</b></div><div><b>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</b><br><b class="under">Độc lập - Tự do - Hạnh phúc</b></div></div>`;
+    return `<table class="snapshot-head" align="center"><tr><td>NGÂN HÀNG NHÀ NƯỚC<br>VIỆT NAM<br><b>CHI NHÁNH KHU VỰC 2</b><br><b class="under">PHÒNG QUẢN LÝ NGOẠI HỐI VÀNG</b></td><td><b>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</b><br><b class="under">Độc lập - Tự do - Hạnh phúc</b></td></tr></table>`;
   }
+  // align="center" (thuoc tinh HTML cu) de Word can giua bang - CSS
+  // margin:auto khong duoc Word ton trong du van chay dung tren trinh duyet.
   function tableHtml(result){
-    return `<table class="snapshot-table"><thead><tr><th>Địa bàn</th><th>Số doanh nghiệp</th><th>Số quốc gia</th></tr></thead><tbody>${result.rows.map(x=>`<tr><td>${esc(x.province)}</td><td class="num">${x.companies}</td><td class="num">${x.countries}</td></tr>`).join('')}<tr class="total"><td>TỔNG CỘNG</td><td class="num">${result.companyTotal}</td><td class="num">${result.countryTotal}</td></tr></tbody></table>`;
+    return `<table class="snapshot-table" align="center"><thead><tr><th>Địa bàn</th><th>Số doanh nghiệp</th><th>Số quốc gia</th></tr></thead><tbody>${result.rows.map(x=>`<tr><td>${esc(x.province)}</td><td class="num">${x.companies}</td><td class="num">${x.countries}</td></tr>`).join('')}<tr class="total"><td>TỔNG CỘNG</td><td class="num">${result.companyTotal}</td><td class="num">${result.countryTotal}</td></tr></tbody></table>`;
   }
   function reportDocument(result, maker, forOffice=false){
     const now = new Date();
     return `${reportHeader()}<div class="snapshot-title">TÌNH HÌNH MỞ VÀ SỬ DỤNG TÀI KHOẢN Ở NƯỚC NGOÀI</div>${procedureStatsHtml(result.procStats, result.fromISO, result.cutoffISO)}<div class="snapshot-intro">Tính đến ngày ${vnDate(result.cutoff)}, số doanh nghiệp có mở tài khoản ngoại tệ tại nước ngoài đang hoạt động theo thống kê của NHNN CN KV2 như sau:</div>${tableHtml(result)}<div class="snapshot-date">Thành phố Hồ Chí Minh, ngày ${String(now.getDate()).padStart(2,'0')} tháng ${String(now.getMonth()+1).padStart(2,'0')} năm ${now.getFullYear()}</div><div class="snapshot-sign"><b>NGƯỜI LẬP BIỂU</b><strong>${esc(maker)}</strong></div>`;
   }
-  function reportCss(){return `body{font:14px "Times New Roman",serif;color:#111;margin:0}.snapshot-page{width:210mm;min-height:297mm;padding:16mm 18mm;box-sizing:border-box}.snapshot-head{display:grid;grid-template-columns:1fr 1fr;text-align:center;line-height:1.35;font-size:12px}.under{display:inline-block}.under:after{content:"";display:block;border-top:1px solid #111;width:90%;margin:2px auto}.snapshot-title{text-align:center;font-size:17px;font-weight:bold;margin:24px 0 8px}.snapshot-intro{text-align:justify;font-size:15px;line-height:1.45;margin:0 0 10px}.snapshot-proc{margin:0 0 12px}.snapshot-proc-title{font-size:15px;font-weight:bold;margin:0 0 4px}.snapshot-proc-empty{font-size:15px;margin:0 0 10px}.snapshot-proc-table{width:100%!important;margin:0 0 12px!important}.snapshot-proc-table .muted{font-size:11px;color:#555;font-weight:normal}.snapshot-table{width:78%;margin:0 auto 2px;border-collapse:collapse;border:1px solid #111;outline:1px solid #111;outline-offset:-1px}.snapshot-table th,.snapshot-table td{border:1px solid #111;padding:6px 10px}.snapshot-table tbody tr:last-child td{border-bottom:2px solid #111}.snapshot-table th{text-align:center}.snapshot-table .num{text-align:right}.snapshot-table .total{font-weight:bold}.snapshot-table .total td:first-child{text-align:center}.snapshot-date{text-align:right;font-style:italic;margin-top:28px}.snapshot-sign{width:42%;margin-left:auto;text-align:center;margin-top:8px}.snapshot-sign strong{display:block;margin-top:62px}.snapshot-preview .snapshot-head{display:none}.snapshot-preview .snapshot-title{margin-top:0}`}
+  function reportCss(){return `body{font:14px "Times New Roman",serif;color:#111;margin:0}.snapshot-page{width:210mm;min-height:297mm;padding:16mm 18mm;box-sizing:border-box}.snapshot-head{width:100%;border-collapse:collapse;text-align:center;line-height:1.35;font-size:12px}.snapshot-head td{border:0;padding:0;vertical-align:top;width:50%}.under{display:inline-block}.under:after{content:"";display:block;border-top:1px solid #111;width:90%;margin:2px auto}.snapshot-title{text-align:center;font-size:17px;font-weight:bold;margin:24px 0 8px}.snapshot-intro{text-align:justify;font-size:15px;line-height:1.45;margin:0 0 10px}.snapshot-proc{margin:0 0 12px}.snapshot-proc-title{font-size:15px;font-weight:bold;margin:0 0 4px}.snapshot-proc-empty{font-size:15px;margin:0 0 10px}.snapshot-proc-table{width:100%!important;margin:0 0 12px!important}.snapshot-proc-table .muted{font-size:11px;color:#555;font-weight:normal}.snapshot-table{width:78%;margin:0 auto 2px;border-collapse:collapse;border:1px solid #111;outline:1px solid #111;outline-offset:-1px}.snapshot-table th,.snapshot-table td{border:1px solid #111;padding:6px 10px}.snapshot-table tbody tr:last-child td{border-bottom:2px solid #111}.snapshot-table th{text-align:center}.snapshot-table .num{text-align:right}.snapshot-table .total{font-weight:bold}.snapshot-table .total td:first-child{text-align:center}.snapshot-date{text-align:right;font-style:italic;margin-top:28px}.snapshot-sign{width:42%;margin-left:auto;text-align:center;margin-top:8px}.snapshot-sign strong{display:block;margin-top:62px}.snapshot-preview .snapshot-head{display:none}.snapshot-preview .snapshot-title{margin-top:0}`}
 
   function downloadBlob(name, type, content){
     const blob=new Blob([content],{type}), url=URL.createObjectURL(blob), a=document.createElement('a');
@@ -148,7 +154,12 @@
     downloadBlob(`Tinh_hinh_TKNN_${safeName(vnDate(result.cutoff))}.doc`,'application/msword;charset=utf-8','﻿'+html);
   }
   function exportPdf(result,maker){
-    const node=document.createElement('div');node.className='snapshot-page';node.innerHTML=`<style>${reportCss()}</style>${reportDocument(result,maker)}`;node.style.background='#fff';document.body.appendChild(node);
+    const node=document.createElement('div');node.className='snapshot-page';node.innerHTML=`<style>${reportCss()}</style>${reportDocument(result,maker)}`;
+    // html2canvas chup theo vi tri hien thi thuc te: neu khong ghim goc
+    // trai-tren, node se bi cac CSS can giua o ngoai (vd body flex) day
+    // lech, sinh khoang trang lon quanh trang PDF.
+    node.style.cssText='position:absolute;left:0;top:0;z-index:-1;background:#fff';
+    document.body.appendChild(node);
     const done=()=>node.remove();
     html2pdf().set({margin:0,filename:`Tinh_hinh_TKNN_${safeName(vnDate(result.cutoff))}.pdf`,image:{type:'jpeg',quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy'],avoid:'tr'}}).from(node).save().then(done,done);
   }
