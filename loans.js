@@ -3,7 +3,26 @@
 // Bảng Khoanvay lưu thông tin gốc; lịch sử được ghép từ hồ sơ TTHC.
 // ============================================================
 
-const LOAN_FIELDS = ['MÃ SỐ KV','MÃ KH','SỐ VBXN','NGÀY VBXN','KIM NGẠCH VAY','ĐỒNG TIỀN','FILE','DƯ NỢ','HẾT NỢ','CP BẢO LÃNH'];
+const LOAN_FIELDS = ['MÃ SỐ KV','MÃ KH','SỐ VBXN','NGÀY VBXN','KIM NGẠCH VAY','ĐỒNG TIỀN','FILE','DƯ NỢ','HẾT NỢ','CP BẢO LÃNH','QUỐC GIA'];
+
+let loanCountryLoadPromise = null;
+// QG (danh muc quoc gia) khong nam trong ROUTE_SHEETS cua trang Khoan vay vi
+// da so man hinh khong can - chi tai khi thuc su mo form Them/Sua.
+async function ensureLoanCountryData() {
+  if (LOADED_SHEETS.has('QG')) return;
+  if (loanCountryLoadPromise) return loanCountryLoadPromise;
+  loanCountryLoadPromise = apiGet('list', { sheet: 'QG' }).then(rows => {
+    DB.QG = Array.isArray(rows) ? rows : [];
+    LOADED_SHEETS.add('QG');
+  }).finally(() => { loanCountryLoadPromise = null; });
+  return loanCountryLoadPromise;
+}
+
+function loanCountryDatalistOptions() {
+  return DB.QG.slice()
+    .sort((a,b) => String(a['TÊN QUỐC GIA']).localeCompare(String(b['TÊN QUỐC GIA']), 'vi'))
+    .map(q => `<option value="${esc(q['MÃ QUỐC GIA'])} — ${esc(q['TÊN QUỐC GIA'])}"></option>`).join('');
+}
 
 function loanIsPaid(loan) {
   const value = loan && loan['HẾT NỢ'];
@@ -311,7 +330,8 @@ function openLoanHistoryLookup() {
 }
 
 function renderKhoanVay() {
-  document.getElementById('topbarActions').innerHTML = `<button class="btn btn-outline" id="btnLoanHistoryLookup">Tra cứu lịch sử khoản vay</button><button class="btn btn-primary" id="btnNewLoan">+ Khoản vay mới</button>`;
+  document.getElementById('topbarActions').innerHTML = `<button class="btn btn-outline" id="btnLoanReport">Báo cáo danh sách khoản vay</button><button class="btn btn-outline" id="btnLoanHistoryLookup">Tra cứu lịch sử khoản vay</button><button class="btn btn-primary" id="btnNewLoan">+ Khoản vay mới</button>`;
+  document.getElementById('btnLoanReport').onclick = openLoanReportOptions;
   document.getElementById('btnLoanHistoryLookup').onclick = openLoanHistoryLookup;
   document.getElementById('btnNewLoan').onclick = () => openLoanForm();
   const customers = new Set(DB.Khoanvay.map(loanCustomerId).filter(Boolean));
@@ -366,7 +386,7 @@ function renderKhoanVay() {
         loans.map(r => `<tr class="clickable-row" data-loan="${esc(r['MÃ SỐ KV'])}">
           <td class="mono"><b>${esc(r['MÃ SỐ KV'])}</b></td><td>${esc(r['SỐ VBXN'])}</td>
           <td class="mono">${esc(fmtDateVN(r['NGÀY VBXN']))}</td><td class="num">${esc(fmtNum(r['KIM NGẠCH VAY']))}</td><td class="num"><b>${esc(fmtNum(r['DƯ NỢ']))}</b></td>
-          <td class="mono">${esc(r['ĐỒNG TIỀN'])}</td><td><span class="badge ${loanHasGovernmentGuarantee(r)?'badge-on':'badge-off'}">${loanHasGovernmentGuarantee(r)?'Có':'Không'}</span></td><td><span class="badge ${loanIsPaid(r)?'badge-off':'badge-on'}">${loanIsPaid(r)?'Đã hết nợ':'Chưa hết nợ'}</span></td><td><span class="badge badge-on">${loanHistory(r['MÃ SỐ KV']).length} văn bản</span></td>
+          <td class="mono">${esc(r['ĐỒNG TIỀN'])}${r['QUỐC GIA']?`<div class="muted">${esc(qgName(r['QUỐC GIA']))}</div>`:''}</td><td><span class="badge ${loanHasGovernmentGuarantee(r)?'badge-on':'badge-off'}">${loanHasGovernmentGuarantee(r)?'Có':'Không'}</span></td><td><span class="badge ${loanIsPaid(r)?'badge-off':'badge-on'}">${loanIsPaid(r)?'Đã hết nợ':'Chưa hết nợ'}</span></td><td><span class="badge badge-on">${loanHistory(r['MÃ SỐ KV']).length} văn bản</span></td>
           <td class="cell-actions"><button class="btn btn-outline btn-sm" data-edit="${esc(r['MÃ SỐ KV'])}">Sửa</button><button class="btn btn-danger btn-sm" data-del="${esc(r['MÃ SỐ KV'])}">Xóa</button></td></tr>`).join('');
     }).join('') : `<tr><td colspan="10"><div class="empty-state"><h3>Không có khoản vay phù hợp</h3></div></td></tr>`;
     body.querySelectorAll('tr[data-loan]').forEach(tr => tr.onclick=e=>{if(!e.target.closest('button')) showLoanHistory(tr.dataset.loan);});
@@ -383,6 +403,13 @@ function renderKhoanVay() {
     ensureLoanHistoryData().then(() => {
       if ((location.hash || '#hoso') === '#khoanvay') renderKhoanVay();
     }).catch(err => toast('Chưa tải được lịch sử khoản vay: ' + err.message, true));
+  }
+  // Tải ngầm danh mục quốc gia để hiển thị đúng tên quốc gia chủ nợ trong
+  // bảng (không chặn màn hình chính).
+  if (!LOADED_SHEETS.has('QG')) {
+    ensureLoanCountryData().then(() => {
+      if ((location.hash || '#hoso') === '#khoanvay') draw();
+    }).catch(() => {});
   }
 }
 
@@ -454,12 +481,19 @@ function openLoanForm(record) {
     <div class="field"><label>Ngày văn bản xác nhận</label><input type="date" name="NGÀY VBXN" value="${toISODate(record['NGÀY VBXN'])}"></div>
     <div class="field"><label>Kim ngạch vay</label><input type="number" step="any" min="0" name="KIM NGẠCH VAY" value="${esc(record['KIM NGẠCH VAY'])}"></div>
     <div class="field"><label>Đồng tiền</label><select name="ĐỒNG TIỀN"><option value="">— Chọn —</option>${currencies.map(x=>`<option ${x===record['ĐỒNG TIỀN']?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
+    <div class="field"><label>Quốc gia chủ nợ</label><input name="QUỐC GIA" list="loanCountryOptions" value="${record['QUỐC GIA']?esc(record['QUỐC GIA']+' — '+qgName(record['QUỐC GIA'])):''}" placeholder="Gõ để tìm quốc gia" autocomplete="off"><datalist id="loanCountryOptions">${LOADED_SHEETS.has('QG')?loanCountryDatalistOptions():''}</datalist></div>
     <div class="field"><label>Dư nợ (cùng đồng tiền vay)</label><input type="number" step="any" min="0" name="DƯ NỢ" value="${esc(record['DƯ NỢ'])}"></div>
     <div class="field"><label class="check-label"><input type="checkbox" name="HẾT NỢ" value="true" ${loanIsPaid(record)?'checked':''}> Khoản vay đã trả hết nợ</label><span class="hint">Mặc định để trống là chưa hết nợ.</span></div>
     <div class="field"><label class="check-label"><input type="checkbox" name="CP BẢO LÃNH" value="true" ${loanHasGovernmentGuarantee(record)?'checked':''}> Khoản vay được Chính phủ bảo lãnh</label><span class="hint">Mặc định để trống là không có bảo lãnh.</span></div>
     ${fileFieldHtml('FILE', record.FILE, { label: 'File văn bản xác nhận', accept: '.pdf,image/*' })}
     </div><div class="modal-foot"><button type="button" class="btn btn-outline" id="cancelLoan">Hủy</button><button class="btn btn-primary" id="saveLoan">Lưu</button></div></form>`, el=>{
       el.querySelector('#cancelLoan').onclick=closeModal;
+      if (!LOADED_SHEETS.has('QG')) {
+        ensureLoanCountryData().then(() => {
+          const list=el.querySelector('#loanCountryOptions');
+          if (list) list.innerHTML=loanCountryDatalistOptions();
+        }).catch(err => toast('Không tải được danh mục quốc gia: '+err.message, true));
+      }
       el.querySelector('form').onsubmit=async e=>{
         e.preventDefault();
         const btn=el.querySelector('#saveLoan'), oldLabel=btn.textContent;
@@ -468,6 +502,7 @@ function openLoanForm(record) {
           const fd=new FormData(e.target),data={};
           LOAN_FIELDS.forEach(k=>data[k]=fd.get(k)||'');
           data['MÃ KH']=lookupCustomerCode(data['MÃ KH']);
+          data['QUỐC GIA']=lookupQGCode(data['QUỐC GIA']);
           data['NGÀY VBXN']=toVNDate(fd.get('NGÀY VBXN'));
           data['KIM NGẠCH VAY']=parseNum(fd.get('KIM NGẠCH VAY'));
           data['DƯ NỢ']=parseNum(fd.get('DƯ NỢ'));

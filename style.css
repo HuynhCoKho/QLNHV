@@ -584,3 +584,14 @@ body:not(.auth-locked) .auth-gate{
 .customer-group-report-table th:nth-child(6){width:145px}
 .customer-group-report-table th:nth-child(7){width:190px}
 .modal:has(.customer-group-report-document){max-width:1500px;width:calc(100vw - 32px)}
+
+/* Bao cao danh sach khoan vay nuoc ngoai */
+.lr-preview{max-height:68vh}
+.lr-table{table-layout:fixed}
+.lr-table th,.lr-table td{white-space:normal;overflow-wrap:anywhere;vertical-align:top}
+.lr-table td.num,.lr-table th:nth-child(5),.lr-table th:nth-child(7),.lr-table th:nth-child(9){text-align:right}
+.lr-group td{background:#dcebe5;font-weight:700;font-size:15px;border-top:2px solid var(--green,#168363)}
+.lr-group .lr-code{margin-left:8px;font-weight:400;font-size:13px}
+.lr-group .lr-count{float:right;font-weight:400;font-size:13px}
+.lr-subtotal td{background:#f3f1eb;font-weight:700}
+.lr-grand td{background:#dedbd2;font-weight:700}

@@ -250,6 +250,16 @@ function findCustomerByCode(ma){
 }
 function khName(ma) { const r=findCustomerByCode(ma); return r ? r.TenKhachHang : ''; }
 function qgName(ma) { const r = DB.QG.find(x => x['MÃ QUỐC GIA'] === String(ma)); return r ? r['TÊN QUỐC GIA'] : String(ma || ''); }
+// Tra ve dung ma quoc gia da luu trong danh muc QG tu o combobox dang "MÃ —
+// Tên"; chap nhan ca khi nguoi dung go thang ma hoac ten quoc gia.
+function lookupQGCode(value) {
+  const entered = lookupCode(value);
+  if (!entered) return '';
+  const byCode = DB.QG.find(x => String(x['MÃ QUỐC GIA']).toLowerCase() === entered.toLowerCase());
+  if (byCode) return String(byCode['MÃ QUỐC GIA']);
+  const byName = DB.QG.find(x => String(x['TÊN QUỐC GIA']).toLowerCase() === entered.toLowerCase());
+  return byName ? String(byName['MÃ QUỐC GIA']) : entered;
+}
 function cvName(ma) { const r = DB.ChuyenVien.find(x => x.MaCV === ma); return r ? r.HoTen : ''; }
 // Ma TTHC trong Google Sheets cu co the bi tu dong ep thanh Number
 // (vi du 1.000111), trong khi danh muc TTHC duoc luu la String. Luon so
