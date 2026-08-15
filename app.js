@@ -736,6 +736,7 @@ const HOSO_DETAIL_FIELDS = [
   ['NgayHenTra', 'Ngày hẹn trả'],
   ['MaCV', 'Chuyên viên', (v) => `${esc(v)} — ${esc(cvName(v))}`],
   ['TrangThai', 'Trạng thái', (v) => statusBadge(v)],
+  ['LoaiVanBanXuLy', 'Loại văn bản xử lý'],
   ['SoVanBan', 'Số văn bản'],
   ['NgayVanBan', 'Ngày văn bản'],
   ['FileVanBan', 'File văn bản đính kèm', (v) => fileListLinksHtml(v, { linkClass: '', sep: '<br>' })],
@@ -796,6 +797,7 @@ function openHoSoForm(rec, afterSave, forceNew = false) {
 
         <fieldset class="subsection" id="fsKetQua"><legend>Kết quả xử lý</legend>
           <div class="form-grid">
+            <div class="field"><label>Loại văn bản xử lý</label><input name="LoaiVanBanXuLy" list="hsLoaiXuLyOptions" value="${esc(rec.LoaiVanBanXuLy || '')}" autocomplete="off" placeholder="Chọn hoặc nhập loại văn bản" /><datalist id="hsLoaiXuLyOptions"><option value="Xác nhận"></option><option value="Từ chối"></option><option value="Bổ sung"></option></datalist></div>
             <div class="field"><label>Số văn bản</label><input type="text" name="SoVanBan" value="${esc(rec.SoVanBan || '')}" /></div>
             <div class="field"><label>Ngày văn bản</label><input type="date" name="NgayVanBan" value="${toISODate(rec.NgayVanBan)}" /></div>
             ${fileFieldHtml('FileVanBan', rec.FileVanBan, { label: 'File văn bản đã xử lý' })}
@@ -925,6 +927,7 @@ function openHoSoForm(rec, afterSave, forceNew = false) {
           NgayHenTra: toVNDate(fd.get('NgayHenTra')),
           MaCV: lookupCode(fd.get('MaCV')),
           TrangThai: fd.get('TrangThai'),
+          LoaiVanBanXuLy: fd.get('LoaiVanBanXuLy') || '',
           SoVanBan: fd.get('SoVanBan') || '',
           NgayVanBan: toVNDate(fd.get('NgayVanBan')),
           FileVanBan: fileVanBanUrl,
