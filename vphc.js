@@ -6,6 +6,22 @@ const VPHC_STATUS=['ĐANG XỬ LÝ','HOÀN TẤT'];
 const vphcFile=r=>{const v=String(r&&r.FILE||'').trim();return v&&v!=='0'?v:''};
 const vphcCustomer=r=>DB.KhachHang.find(k=>k.MaKH===String(r&&r['MÃ KH']||''));
 
+// Trang VPHC không cần toàn bộ sheet Hồ sơ (~15.000 dòng) để hiển thị danh
+// sách của chính nó - chỉ cần khi mở form thêm/sửa để chọn "Hồ sơ tiếp nhận".
+// Tải ngầm sau khi trang đã hiện xong, không chặn lúc chuyển trang.
+let vphcHoSoLoadPromise = null;
+function ensureVPHCHoSo() {
+  if (LOADED_SHEETS.has('HoSo')) return Promise.resolve();
+  if (vphcHoSoLoadPromise) return vphcHoSoLoadPromise;
+  vphcHoSoLoadPromise = (async () => {
+    const bundle = await apiGet('batchList', { sheets: 'HoSo' });
+    DB.HoSo = Array.isArray(bundle.HoSo) ? bundle.HoSo : [];
+    LOADED_SHEETS.add('HoSo');
+    normalizeIds();
+  })().finally(() => { vphcHoSoLoadPromise = null; });
+  return vphcHoSoLoadPromise;
+}
+
 function renderVPHC(){
   document.getElementById('topbarActions').innerHTML='<button class="btn btn-outline" id="reportVPHC">Xem báo cáo</button><button class="btn btn-primary" id="newVPHC">+ Hồ sơ vi phạm mới</button>';
   document.getElementById('reportVPHC').onclick=openVPHCReportPrompt;
@@ -29,6 +45,7 @@ function renderVPHC(){
     body.innerHTML=shown.length?shown.map(r=>{const k=vphcCustomer(r);return`<tr class="clickable-row" data-vphc="${esc(r['MÃ HỒ SƠ VI PHẠM'])}"><td class="mono"><b>${esc(r['MÃ HỒ SƠ VI PHẠM'])}</b><div class="muted">HS: ${esc(r['MÃ HỒ SƠ']||'—')}</div></td><td><b>${esc(k?k.TenKhachHang:'Chưa xác định')}</b><div class="muted mono">${esc(r['MÃ KH'])}</div></td><td>${esc(r['NHÓM NV'])}</td><td><b>${esc(r['SỐ QUYẾT ĐỊNH']||'—')}</b><div class="muted mono">${esc(r['NGÀY QUYẾT ĐỊNH']||'')}</div></td><td><span class="badge ${r['LOẠI XỬ LÝ']==='XỬ PHẠT'?'badge-danger':'badge-amber'}">${esc(r['LOẠI XỬ LÝ']||'—')}</span></td><td class="num"><b>${fmtNum(r['SỐ TIỀN PHẠT'])}</b></td><td><span class="badge ${r['TRẠNG THÁI']==='HOÀN TẤT'?'badge-sage':'badge-amber'}">${esc(r['TRẠNG THÁI']||'—')}</span></td><td>${esc(cvName(r['MÃ CHUYÊN VIÊN'])||r['MÃ CHUYÊN VIÊN']||'—')}</td><td>${fileListLinksHtml(vphcFile(r))}</td><td class="cell-actions"><button class="btn btn-outline btn-sm" data-edit="${esc(r['MÃ HỒ SƠ VI PHẠM'])}">Sửa</button><button class="btn btn-danger btn-sm" data-del="${esc(r['MÃ HỒ SƠ VI PHẠM'])}">Xóa</button></td></tr>`}).join(''):'<tr><td colspan="10"><div class="empty-state"><h3>Không có hồ sơ phù hợp</h3></div></td></tr>';
     body.querySelectorAll('[data-vphc]').forEach(tr=>tr.onclick=e=>{if(!e.target.closest('button,a'))showVPHCDetail(tr.dataset.vphc)});body.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openVPHCForm(DB.VPHC.find(r=>r['MÃ HỒ SƠ VI PHẠM']===b.dataset.edit)));body.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>deleteVPHC(b.dataset.del));document.getElementById('vphcPager').innerHTML=pagerHtml(page,pages,rows.length,'vphc');wirePager('vphc',()=>page,p=>page=p,pages,draw)};
   document.getElementById('vphcSearch').oninput=()=>{page=1;draw()};['vphcStatus','vphcType','vphcAuthority'].forEach(id=>document.getElementById(id).onchange=()=>{page=1;draw()});draw();
+  ensureVPHCHoSo().catch(err=>toast('Chưa tải được danh sách hồ sơ tiếp nhận: '+err.message,true));
 }
 
 function vphcReportISODate(value){const s=String(value||'').trim();let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(m)return`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(m)return`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;return''}

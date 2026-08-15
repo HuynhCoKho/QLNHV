@@ -37,7 +37,11 @@ const ROUTE_SHEETS = {
   chovay:['KhachHang','ChoVay','TTHC','NhomNghiepVu'],
   dtrnnn:['KhachHang','QG','DTRNNN','DTRNNN_NDT','TTHC','NhomNghiepVu'],
   campuchia:['KhachHang','Campuchia','ChuyenVien'],
-  vphc:['KhachHang','VPHC','HoSo','NhomNghiepVu','ChuyenVien']
+  tracuungoaihoi:['KhachHang','QG','Khoanvay','ChoVay','TKNHTONN','DTRNNN','DTRNNN_NDT','Campuchia','VPHC'],
+  // HoSo (~15.000 dòng) không nằm trong danh sách này: trang hiện dữ liệu VPHC
+  // ngay, rồi tự tải ngầm toàn bộ Hồ sơ phía sau (xem renderVPHC) - chỉ cần
+  // cho danh sách "Hồ sơ tiếp nhận" khi mở form thêm/sửa, không cần chờ.
+  vphc:['KhachHang','VPHC','NhomNghiepVu','ChuyenVien']
 };
 const LOADED_SHEETS = new Set();
 let routeLoadToken = 0;
@@ -451,7 +455,8 @@ const ROUTES = {
   chovay: { title: 'Cho vay ra nước ngoài', render: renderChoVay },
   dtrnnn: { title: 'Đầu tư ra nước ngoài', render: renderDTRNNN },
   campuchia: { title: 'Thanh toán với Campuchia', render: renderCampuchia },
-  vphc: { title: 'Xử lý vi phạm hành chính', render: renderVPHC }
+  vphc: { title: 'Xử lý vi phạm hành chính', render: renderVPHC },
+  tracuungoaihoi: { title: 'Tra cứu hoạt động ngoại hối', render: renderCustomerLookup }
 };
 
 // route <-> ten sheet trong Google Sheet (dung de sap xep lai sidebar theo dung thu tu tab)
@@ -471,7 +476,8 @@ const NAV_ITEMS = [
   { route: 'chovay', sheet: 'ChoVay', label: 'Cho vay ra nước ngoài' },
   { route: 'dtrnnn', sheet: 'DTRNNN', label: 'Đầu tư ra nước ngoài' },
   { route: 'campuchia', sheet: 'Campuchia', label: 'Thanh toán Campuchia' },
-  { route: 'vphc', sheet: 'VPHC', label: 'Xử lý VPHC' }
+  { route: 'vphc', sheet: 'VPHC', label: 'Xử lý VPHC' },
+  { route: 'tracuungoaihoi', sheet: 'TraCuuNgoaiHoi', label: 'Tra cứu ngoại hối' }
 ];
 
 async function buildSidebarNav() {
@@ -913,7 +919,7 @@ function openHoSoForm(rec, afterSave, forceNew = false) {
         submitBtn.textContent = 'Đang lưu…';
         const data = {
           MaHoSo: fd.get('MaHoSo').trim(),
-          MaKH: lookupCode(fd.get('MaKH')),
+          MaKH: lookupCustomerCode(fd.get('MaKH')),
           MaTTHC: lookupCode(fd.get('MaTTHC')),
           NgayTiepNhan: toVNDate(fd.get('NgayTiepNhan')),
           NgayHenTra: toVNDate(fd.get('NgayHenTra')),
