@@ -1,6 +1,19 @@
 // Báo cáo khách hàng theo nhóm nghiệp vụ.
 // File này được triển khai cùng Code.gs trong dự án Apps Script QLNHV.
 
+// Chuan hoa ten nhom nghiep vu (va cac ten alias) de so sanh khong phan biet
+// hoa/thuong, khong phan biet khoang trang thua - dung chung cho ca gia tri
+// nguoi dung chon (groupName) va gia tri doc tu cot NhomNghiepVu trong TTHC.
+function normalizeReportText(value) {
+  return String(value == null ? '' : value).trim().toLocaleLowerCase('vi');
+}
+
+// So sanh long le hon giua cac ma khach hang: bo so 0 dau (vd "0001" -> "1")
+// de van khop duoc voi du lieu cu tung bi Google Sheets tu dong doi thanh so.
+function normalizeReportCustomerCode(code) {
+  return String(code == null ? '' : code).trim().replace(/^0+(?=\d)/, '');
+}
+
 const CUSTOMER_GROUP_REPORT_SOURCES = {
   'campuchia': [
     {sheet: 'Campuchia', field: 'MÃ KH'}
