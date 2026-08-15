@@ -14,27 +14,26 @@ function normalizeReportCustomerCode(code) {
   return String(code == null ? '' : code).trim().replace(/^0+(?=\d)/, '');
 }
 
-const CUSTOMER_GROUP_REPORT_SOURCES = {
-  'campuchia': [
-    {sheet: 'Campuchia', field: 'MÃ KH'}
-  ],
-  'tài khoản ngoại tệ ở nước ngoài': [
-    {sheet: 'TKNHTONN', field: 'MÃ ĐƠN VỊ'}
-  ],
-  'vay, trả nợ nước ngoài': [
-    {sheet: 'Khoanvay', field: 'MÃ KH'}
-  ],
-  'cho vay ra nước ngoài': [
-    {sheet: 'ChoVay', field: 'MÃ KH'}
-  ],
-  'đầu tư ra nước ngoài': [
-    {sheet: 'DTRNNN_NDT', field: 'MÃ KH'}
-  ]
-};
-
 const CUSTOMER_GROUP_REPORT_TTHC_ALIASES = {
   'đại lý đổi ngoại tệ': ['đại lý đổi ngoại tệ', 'đổi ngoại tệ']
 };
+
+// Nguon sheet nghiep vu rieng cua tung nhom nghiep vu (neu co) KHONG con
+// hardcode o day - doc truc tiep tu 2 cot SheetLienKet/CotMaKH trong chinh
+// sheet NhomNghiepVu (xem SHEETS.NhomNghiepVu trong Code.gs va
+// bootstrapCustomerGroupReportMapping()). Them nhom nghiep vu moi co sheet
+// rieng chi can dien 2 cot do vao dong tuong ung trong NhomNghiepVu, KHONG
+// can sua file nay hay deploy lai.
+function customerGroupReportSourcesFor(wantedGroup) {
+  const row = listRows('NhomNghiepVu').find(function(r) {
+    return normalizeReportText(r.TenNhom) === wantedGroup;
+  });
+  if (!row) return [];
+  const sheetName = String(row.SheetLienKet || '').trim();
+  const field = String(row.CotMaKH || '').trim();
+  if (!sheetName || !field) return [];
+  return [{sheet: sheetName, field: field}];
+}
 
 function addCustomerGroupReportCode(value, exactCodes, comparableCodes) {
   const code = normalizeRecordIdValue(value).trim();
@@ -114,7 +113,7 @@ function getCustomerGroupReport(groupName) {
 
   // Nguồn 2: danh sách tổng trong các bảng nghiệp vụ. Mỗi bảng có thể chứa
   // dữ liệu cũ được nhập trực tiếp, không có hồ sơ TTHC tương ứng.
-  (CUSTOMER_GROUP_REPORT_SOURCES[wantedGroup] || []).forEach(function(source) {
+  customerGroupReportSourcesFor(wantedGroup).forEach(function(source) {
     addCustomerGroupCodesFromSheet(ss, source, exactCodes, comparableCodes);
   });
 
