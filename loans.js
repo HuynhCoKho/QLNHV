@@ -467,7 +467,7 @@ function openLoanForm(record) {
         try {
           const fd=new FormData(e.target),data={};
           LOAN_FIELDS.forEach(k=>data[k]=fd.get(k)||'');
-          data['MÃ KH']=lookupCode(data['MÃ KH']);
+          data['MÃ KH']=lookupCustomerCode(data['MÃ KH']);
           data['NGÀY VBXN']=toVNDate(fd.get('NGÀY VBXN'));
           data['KIM NGẠCH VAY']=parseNum(fd.get('KIM NGẠCH VAY'));
           data['DƯ NỢ']=parseNum(fd.get('DƯ NỢ'));
