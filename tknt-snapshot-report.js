@@ -154,16 +154,9 @@
     downloadBlob(`Tinh_hinh_TKNN_${safeName(vnDate(result.cutoff))}.doc`,'application/msword;charset=utf-8','﻿'+html);
   }
   function exportPdf(result,maker){
-    const node=document.createElement('div');node.className='snapshot-page';node.innerHTML=`<style>${reportCss()}</style>${reportDocument(result,maker)}`;
-    // html2canvas chup theo vi tri hien thi thuc te: neu khong ghim goc
-    // trai-tren, node se bi cac CSS can giua o ngoai (vd body flex) day
-    // lech, sinh khoang trang lon quanh trang PDF. KHONG dung z-index am -
-    // de node ngoai man hinh (left am) thay vi day xuong duoi cac lop khac,
-    // tranh bi cac phan tu khac (modal, sidebar...) de len tren khi chup.
-    node.style.cssText='position:absolute;left:-9999px;top:0;background:#fff';
-    document.body.appendChild(node);
+    const node=document.createElement('div');node.className='snapshot-page';node.innerHTML=`<style>${reportCss()}</style>${reportDocument(result,maker)}`;node.style.background='#fff';document.body.appendChild(node);
     const done=()=>node.remove();
-    html2pdf().set({margin:0,filename:`Tinh_hinh_TKNN_${safeName(vnDate(result.cutoff))}.pdf`,image:{type:'jpeg',quality:.98},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy'],avoid:'tr'}}).from(node).save().then(done,done);
+    html2pdf().set({margin:0,filename:`Tinh_hinh_TKNN_${safeName(vnDate(result.cutoff))}.pdf`,image:{type:'jpeg',quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy'],avoid:'tr'}}).from(node).save().then(done,done);
   }
   function printReport(result,maker){
     const popup=window.open('','_blank');
