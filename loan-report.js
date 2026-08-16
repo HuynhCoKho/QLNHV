@@ -19,12 +19,33 @@ function loanReportCityOptions() {
     .map(t => `<option value="${esc(t.TenTinh)}">${esc(t.TenTinh)}</option>`).join('');
 }
 
+let loanReportRatesLoadPromise = null;
+// Trang Khoan vay nuoc ngoai (ROUTE_SHEETS.khoanvay) khong tai san TyGia vi
+// da so man hinh khong can - phai tai rieng truoc khi tinh Quy USD, neu
+// khong DB.TyGia rong se lam MOI dong tien deu khong quy doi duoc (khong
+// chi rieng USD).
+async function ensureLoanReportRates() {
+  if (LOADED_SHEETS.has('TyGia')) return;
+  if (loanReportRatesLoadPromise) return loanReportRatesLoadPromise;
+  loanReportRatesLoadPromise = apiGet('list', { sheet: 'TyGia' }).then(rows => {
+    DB.TyGia = Array.isArray(rows) ? rows : [];
+    LOADED_SHEETS.add('TyGia');
+  }).finally(() => { loanReportRatesLoadPromise = null; });
+  return loanReportRatesLoadPromise;
+}
+
 function loanReportStatusLabel(row) {
   return loanIsPaid(row) ? 'Đã hết nợ' : 'Chưa hết nợ';
 }
 
 function loanReportUSD(row) {
-  return toUSD(parseNum(row['KIM NGẠCH VAY']), row['ĐỒNG TIỀN']);
+  const amount = parseNum(row['KIM NGẠCH VAY']);
+  if (amount === '' || amount === null || amount === undefined) return null;
+  // Sheet TyGia thuong khong co dong 'USD' (vi day la dong tien goc, khong
+  // can quy doi) nen toUSD() se tra ve null cho khoan vay USD neu goi thang.
+  // Cung cach xu ly nhu tknt.js (tkntToUSD)/tknt-activity.js.
+  if (String(row['ĐỒNG TIỀN'] || '').toUpperCase() === 'USD') return Number(amount);
+  return toUSD(amount, row['ĐỒNG TIỀN']);
 }
 
 // Nhom theo doanh nghiệp (khach hang) — tai su dung loanCustomerId de van
@@ -193,10 +214,19 @@ function openLoanReportOptions() {
         citySelect.disabled = false;
       }).catch(err => toast('Không tải được danh mục tỉnh/thành: ' + err.message, true));
     }
-    el.querySelector('form').onsubmit = e => {
+    el.querySelector('form').onsubmit = async e => {
       e.preventDefault();
       const fd = new FormData(e.target);
-      showLoanReport(loanReportBuild(fd.get('city') || '', fd.get('status') || ''));
+      const city = fd.get('city') || '', status = fd.get('status') || '';
+      const btn = el.querySelector('#loanReportView'), oldLabel = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Đang tải tỷ giá…';
+      try {
+        await ensureLoanReportRates();
+        showLoanReport(loanReportBuild(city, status));
+      } catch (err) {
+        toast('Không tải được tỷ giá quy đổi: ' + err.message, true);
+        btn.disabled = false; btn.textContent = oldLabel;
+      }
     };
   });
 }
