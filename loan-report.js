@@ -38,6 +38,14 @@ function loanReportStatusLabel(row) {
   return loanIsPaid(row) ? 'Đã hết nợ' : 'Chưa hết nợ';
 }
 
+// Cot Quy USD la ket qua chia ty gia nen co the co rat nhieu chu so thap
+// phan (vd 125.607,7747591) neu dung fmtNum() thong thuong - de nham. Luon
+// co dung 2 chu so thap phan (dinh dang #.##0,00) cho de doc.
+function loanReportFmtUSD(n) {
+  if (n === '' || n === null || n === undefined || isNaN(n)) return '';
+  return Number(n).toLocaleString('vi-VN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 function loanReportUSD(row) {
   const amount = parseNum(row['KIM NGẠCH VAY']);
   if (amount === '' || amount === null || amount === undefined) return null;
@@ -96,16 +104,16 @@ function loanReportGroupRows(data) {
     html += `<tr class="lr-group"><td colspan="9"><b>${gi + 1}. ${esc(g.name)}</b><span class="lr-code mono">${esc(g.maKH || '—')}</span><span class="lr-count">${g.loans.length} khoản vay</span></td></tr>`;
     g.loans.forEach((r, i) => {
       const usd = loanReportUSD(r);
-      html += `<tr><td class="num muted">${gi + 1}.${i + 1}</td><td class="mono"><b>${esc(r['MÃ SỐ KV'])}</b></td><td>${esc(r['SỐ VBXN'] || '—')}</td><td class="mono">${esc(fmtDateVN(r['NGÀY VBXN']))}</td><td class="num">${esc(fmtNum(r['KIM NGẠCH VAY']))}</td><td class="mono">${esc(r['ĐỒNG TIỀN'])}</td><td class="num">${esc(fmtNum(r['DƯ NỢ']))}</td><td>${loanReportStatusLabel(r)}</td><td class="num">${usd === null ? '—' : esc(fmtNum(usd))}</td></tr>`;
+      html += `<tr><td class="num muted">${gi + 1}.${i + 1}</td><td class="mono"><b>${esc(r['MÃ SỐ KV'])}</b></td><td>${esc(r['SỐ VBXN'] || '—')}</td><td class="mono">${esc(fmtDateVN(r['NGÀY VBXN']))}</td><td class="num">${esc(fmtNum(r['KIM NGẠCH VAY']))}</td><td class="mono">${esc(r['ĐỒNG TIỀN'])}</td><td class="num">${esc(fmtNum(r['DƯ NỢ']))}</td><td>${loanReportStatusLabel(r)}</td><td class="num">${usd === null ? '—' : esc(loanReportFmtUSD(usd))}</td></tr>`;
     });
-    html += `<tr class="lr-subtotal"><td colspan="8">Tổng ${esc(g.name)}: ${g.loans.length} khoản vay</td><td class="num">${esc(fmtNum(g.usd))}</td></tr>`;
+    html += `<tr class="lr-subtotal"><td colspan="8">Tổng ${esc(g.name)}: ${g.loans.length} khoản vay</td><td class="num">${esc(loanReportFmtUSD(g.usd))}</td></tr>`;
   });
   return html;
 }
 
 function loanReportTable(data) {
   const body = data.rows.length
-    ? loanReportGroupRows(data) + `<tr class="lr-grand"><td colspan="8">TỔNG CỘNG: ${data.companyCount} doanh nghiệp · ${data.loanCount} khoản vay</td><td class="num">${esc(fmtNum(data.totalUSD))}</td></tr>`
+    ? loanReportGroupRows(data) + `<tr class="lr-grand"><td colspan="8">TỔNG CỘNG: ${data.companyCount} doanh nghiệp · ${data.loanCount} khoản vay</td><td class="num">${esc(loanReportFmtUSD(data.totalUSD))}</td></tr>`
     : '<tr><td colspan="9" class="muted">Không có khoản vay phù hợp với điều kiện đã chọn.</td></tr>';
   return `<table class="lr-table"><thead><tr><th>TT</th><th>Mã số khoản vay</th><th>Số VB xác nhận</th><th>Ngày VB</th><th>Kim ngạch vay</th><th>Đồng tiền</th><th>Dư nợ</th><th>Trạng thái</th><th>Quy USD</th></tr></thead><tbody>${body}</tbody></table>`;
 }
