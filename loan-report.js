@@ -191,8 +191,24 @@ function printLoanReport(data) {
 // lam html2canvas chup ra trang trang (xem lich su sua exportPdf trong
 // tknt-snapshot-report.js). Chi gan node vao body binh thuong nhu
 // exportCustomerGroupReportPdf, la cach da kiem chung hoat dong dung.
+// html2canvas dung MOT canvas duy nhat cho toan bo noi dung. Bao cao loc it
+// (vd theo tinh/thanh + trang thai cu the) chi vai chuc dong thi khong sao,
+// nhung loc rong (ca thanh pho lon, hang nghin khoan vay) lam canvas cao toi
+// hang tram nghin px - vuot qua gioi han bo nho/kich thuoc canvas cua trinh
+// duyet va ra PDF trang trong (da kiem chung bang html2canvas that: rendering
+// bat dau hong ngay o vai tram dong, ~2.300 dong thi mat ~36s va gan chac
+// chan hong). Voi bao cao qua lon, chuyen sang In truc tiep - trinh duyet tu
+// phan trang khong gioi han kich thuoc - de nguoi dung van "Luu duoi dang
+// PDF" duoc qua hop thoai in, thay vi im lang ra file trang.
+const LOAN_REPORT_PDF_ROW_LIMIT = 150;
+
 async function exportLoanReportPdf(data) {
   if (typeof html2pdf === 'undefined') { printLoanReport(data); return; }
+  if (data.rows.length > LOAN_REPORT_PDF_ROW_LIMIT) {
+    toast(`Báo cáo có ${data.rows.length} khoản vay, quá lớn để xuất PDF trực tiếp (dễ ra file trắng). Đang chuyển sang In để bạn lưu PDF qua hộp thoại in của trình duyệt — hoặc thu hẹp bộ lọc tỉnh/thành, trạng thái rồi thử lại.`, true);
+    printLoanReport(data);
+    return;
+  }
   const host = document.createElement('div');
   host.innerHTML = loanReportDocument(data, false).replace(/^.*?<body>/s, '').replace(/<\/body>.*$/s, '');
   host.style.width = '277mm';
