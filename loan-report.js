@@ -138,29 +138,46 @@ function exportLoanReportWord(data) {
   loanReportDownload('﻿' + loanReportDocument(data, false), 'application/msword;charset=utf-8', loanReportFileStem(data) + '.doc');
 }
 
-function loanReportExcelClean(value) {
-  return String(value ?? '').replace(/\t|\r?\n/g, ' ');
-}
-
 // Chia cho ty gia co the ra rat nhieu chu so thap phan (vd 62407292.956651695).
-// Lam tron 2 so va giu dau cham (khong dung dinh dang vi-VN co dau phay/cham
-// nguoc lai) de Excel/Sheets van nhan dung la mot so that su o moi locale,
-// khong bi doc nham thanh van ban.
+// Lam tron 2 so cho de doc.
 function loanReportExcelUSD(usd) {
   if (usd === null || usd === undefined || usd === '' || isNaN(usd)) return '';
-  return Number(usd).toFixed(2);
+  return Number(Number(usd).toFixed(2));
+}
+
+// Van ban thuan phan cach bang tab (gia dinh la .xls) khong duoc moi phien
+// ban Excel nhan dung dinh dang bang - co the bi nhap nguyen ca dong vao 1 o
+// cot A thay vi tach cot. Dung bang HTML that su (nhu exportExcel trong
+// tknt-snapshot-report.js, cach da kiem chung hoat dong on dinh) de Excel
+// luon nhan dung cau truc bang bat ke phien ban/locale.
+function loanReportExcelRow(cells) {
+  return `<tr>${cells.map(c => `<td style="border:1px solid #000" align="${c.right ? 'right' : 'left'}">${esc(c.v)}</td>`).join('')}</tr>`;
 }
 
 function exportLoanReportExcel(data) {
-  const lines = [['TT', 'Doanh nghiệp', 'Mã KH', 'Mã số khoản vay', 'Số VBXN', 'Ngày VB', 'Kim ngạch vay', 'Đồng tiền', 'Dư nợ', 'Trạng thái', 'Quy USD'].join('\t')];
-  let n = 0;
-  data.groups.forEach(g => g.loans.forEach(r => {
-    n++;
-    const usd = loanReportUSD(r);
-    lines.push([n, g.name, g.maKH, r['MÃ SỐ KV'], r['SỐ VBXN'], fmtDateVN(r['NGÀY VBXN']), r['KIM NGẠCH VAY'], r['ĐỒNG TIỀN'], r['DƯ NỢ'], loanReportStatusLabel(r), loanReportExcelUSD(usd)].map(loanReportExcelClean).join('\t'));
-  }));
-  lines.push(['', `TỔNG CỘNG: ${data.companyCount} doanh nghiệp · ${data.loanCount} khoản vay`, '', '', '', '', '', '', '', '', loanReportExcelUSD(data.totalUSD)].map(loanReportExcelClean).join('\t'));
-  loanReportDownload('﻿' + lines.join('\r\n'), 'application/vnd.ms-excel;charset=utf-8', loanReportFileStem(data) + '.xls');
+  const meta = loanReportMeta(data);
+  const bodyRows = [];
+  data.groups.forEach(g => {
+    bodyRows.push(`<tr><th colspan="8" style="border:1px solid #000;text-align:left;background:#dcebe5">${esc(g.name)} (${esc(g.maKH || '—')}) — ${g.loans.length} khoản vay</th></tr>`);
+    g.loans.forEach((r, i) => {
+      const usd = loanReportUSD(r);
+      bodyRows.push(loanReportExcelRow([
+        { v: i + 1, right: true }, { v: r['MÃ SỐ KV'] }, { v: r['SỐ VBXN'] }, { v: fmtDateVN(r['NGÀY VBXN']) },
+        { v: r['KIM NGẠCH VAY'], right: true }, { v: r['ĐỒNG TIỀN'] }, { v: r['DƯ NỢ'], right: true },
+        { v: loanReportStatusLabel(r) }, { v: loanReportExcelUSD(usd), right: true }
+      ]));
+    });
+    bodyRows.push(`<tr><th colspan="8" style="border:1px solid #000">Tổng ${esc(g.name)}: ${g.loans.length} khoản vay</th><th style="border:1px solid #000" align="right">${loanReportExcelUSD(g.usd)}</th></tr>`);
+  });
+  const html = `<html><head><meta charset="utf-8"></head><body><table>
+    <tr><th colspan="9">BÁO CÁO DANH SÁCH KHOẢN VAY NƯỚC NGOÀI</th></tr>
+    <tr><th colspan="9">${esc(meta.cityText)} · ${esc(meta.statusText)}</th></tr>
+    <tr></tr>
+    <tr><th style="border:1px solid #000">TT</th><th style="border:1px solid #000">Mã số khoản vay</th><th style="border:1px solid #000">Số VBXN</th><th style="border:1px solid #000">Ngày VB</th><th style="border:1px solid #000">Kim ngạch vay</th><th style="border:1px solid #000">Đồng tiền</th><th style="border:1px solid #000">Dư nợ</th><th style="border:1px solid #000">Trạng thái</th><th style="border:1px solid #000">Quy USD</th></tr>
+    ${bodyRows.join('')}
+    <tr><th colspan="8" style="border:1px solid #000">TỔNG CỘNG: ${data.companyCount} doanh nghiệp · ${data.loanCount} khoản vay</th><th style="border:1px solid #000" align="right">${loanReportExcelUSD(data.totalUSD)}</th></tr>
+    </table></body></html>`;
+  loanReportDownload('﻿' + html, 'application/vnd.ms-excel;charset=utf-8', loanReportFileStem(data) + '.xls');
 }
 
 function printLoanReport(data) {
