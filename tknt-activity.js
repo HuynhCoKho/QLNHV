@@ -57,19 +57,33 @@ function openTKNTActivityReport(period) {
 }
 
 function exportTKNTActivityExcel(period, groups) {
-  const clean = v => String(v ?? '').replace(/\t|\r?\n/g,' ');
-  const lines = [['Tỉnh/Thành phố','Mã khách hàng','Tên doanh nghiệp','Số tài khoản','Thu (USD)','Chi (USD)','CK VP (USD)','CK Vay (USD)','CK HĐ (USD)','Tổng số dư (USD)'].join('\t')];
+  const head = xlsRow(['Tỉnh/Thành phố','Mã khách hàng','Tên doanh nghiệp','Số tài khoản','Thu (USD)','Chi (USD)','CK VP (USD)','CK Vay (USD)','CK HĐ (USD)','Tổng số dư (USD)']
+    .map(h => xlsCell(h, { header: true })).join(''));
   const all = [];
-  groups.forEach(g => {
+  const groupRows = groups.map(g => {
     all.push(...g.companies);
     const s = activitySum(g.companies);
-    lines.push([clean(g.province),'',String(g.province).toUpperCase(),'',tkntMillion(s.thu),tkntMillion(s.chi),tkntMillion(s.vp),tkntMillion(s.vay),tkntMillion(s.hd),tkntMillion(s.vp+s.vay+s.hd)].join('\t'));
-    g.companies.forEach(x => lines.push([clean(g.province),clean(x.customer.MaKH),clean(x.customer.TenKhachHang),x.accounts.size,tkntMillion(x.thu),tkntMillion(x.chi),tkntMillion(x.vp),tkntMillion(x.vay),tkntMillion(x.hd),tkntMillion(x.vp+x.vay+x.hd)].join('\t')));
-  });
+    const provinceRow = xlsRow([
+      xlsCell(String(g.province).toUpperCase(), { header: true, colspan: 4, style: 'border:1px solid #000;text-align:left;background:#dcebe5' }),
+      xlsCell(tkntMillion(s.thu), { header: true, right: true }), xlsCell(tkntMillion(s.chi), { header: true, right: true }),
+      xlsCell(tkntMillion(s.vp), { header: true, right: true }), xlsCell(tkntMillion(s.vay), { header: true, right: true }),
+      xlsCell(tkntMillion(s.hd), { header: true, right: true }), xlsCell(tkntMillion(s.vp+s.vay+s.hd), { header: true, right: true })
+    ].join(''));
+    const companyRows = g.companies.map(x => xlsRow([
+      xlsCell(g.province), xlsCell(x.customer.MaKH), xlsCell(x.customer.TenKhachHang), xlsCell(x.accounts.size, { right: true }),
+      xlsCell(tkntMillion(x.thu), { right: true }), xlsCell(tkntMillion(x.chi), { right: true }), xlsCell(tkntMillion(x.vp), { right: true }),
+      xlsCell(tkntMillion(x.vay), { right: true }), xlsCell(tkntMillion(x.hd), { right: true }), xlsCell(tkntMillion(x.vp+x.vay+x.hd), { right: true })
+    ].join(''))).join('');
+    return provinceRow + companyRows;
+  }).join('');
   const grand = activitySum(all);
-  lines.push(['','','TỔNG CỘNG','',tkntMillion(grand.thu),tkntMillion(grand.chi),tkntMillion(grand.vp),tkntMillion(grand.vay),tkntMillion(grand.hd),tkntMillion(grand.vp+grand.vay+grand.hd)].join('\t'));
-  const blob = new Blob(['\ufeff'+lines.join('\r\n')], {type:'application/vnd.ms-excel;charset=utf-8'}), url = URL.createObjectURL(blob), a = document.createElement('a');
-  a.href=url; a.download=`Tinh_hinh_TKNT_${period}.xls`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+  const grandRow = xlsRow([
+    xlsCell('TỔNG CỘNG', { header: true, colspan: 4 }),
+    xlsCell(tkntMillion(grand.thu), { header: true, right: true }), xlsCell(tkntMillion(grand.chi), { header: true, right: true }),
+    xlsCell(tkntMillion(grand.vp), { header: true, right: true }), xlsCell(tkntMillion(grand.vay), { header: true, right: true }),
+    xlsCell(tkntMillion(grand.hd), { header: true, right: true }), xlsCell(tkntMillion(grand.vp+grand.vay+grand.hd), { header: true, right: true })
+  ].join(''));
+  xlsDownload(`Tinh_hinh_TKNT_${period}.xls`, head + groupRows + grandRow);
 }
 
 function printTKNTActivityReport(period, groups, missingRates) {

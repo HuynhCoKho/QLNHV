@@ -149,23 +149,14 @@ function customerGroupReportFileStem(groupName) {
   return `Danh-sach-khach-hang-${safe || 'Nhom-nghiep-vu'}`;
 }
 
-function customerGroupReportClean(value) {
-  return String(value ?? '').replace(/\t|\r?\n/g, ' ').trim();
-}
-
 function exportCustomerGroupReportExcel(groupName, rows) {
-  const lines = [
-    ['STT', 'Mã khách hàng', 'Số định danh', 'Tên khách hàng', 'Địa chỉ', 'Số điện thoại', 'Email'].join('\t'),
-    ...rows.map((row, index) => [
-      index + 1, row.MaKH, row.MaDinhDanh, row.TenKhachHang,
-      customerGroupReportAddress(row), row.SoDienThoai, row.Email
-    ].map(customerGroupReportClean).join('\t'))
-  ];
-  downloadCustomerGroupReport(
-    '\ufeff' + lines.join('\r\n'),
-    'application/vnd.ms-excel;charset=utf-8',
-    customerGroupReportFileStem(groupName) + '.xls'
-  );
+  const head = xlsRow(['STT', 'Mã khách hàng', 'Số định danh', 'Tên khách hàng', 'Địa chỉ', 'Số điện thoại', 'Email']
+    .map(h => xlsCell(h, { header: true })).join(''));
+  const body = rows.map((row, index) => xlsRow([
+    xlsCell(index + 1, { right: true }), xlsCell(row.MaKH), xlsCell(row.MaDinhDanh), xlsCell(row.TenKhachHang),
+    xlsCell(customerGroupReportAddress(row)), xlsCell(row.SoDienThoai), xlsCell(row.Email)
+  ].join(''))).join('');
+  xlsDownload(customerGroupReportFileStem(groupName) + '.xls', head + body);
 }
 
 function customerGroupReportPrintableHtml(groupName, rows, autoPrint) {

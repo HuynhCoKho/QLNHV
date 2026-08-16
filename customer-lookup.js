@@ -135,10 +135,6 @@ function customerLookupFileStem(customer) {
   return `Hoat-dong-ngoai-hoi-${customer.MaKH}-${safe}`;
 }
 
-function customerLookupClean(value) {
-  return String(value ?? '').replace(/\t|\r?\n/g, ' ').trim();
-}
-
 // Chỉ xuất/in các nhóm khách hàng thực sự có hoạt động - khác với màn hình
 // tra cứu (luôn hiện đủ 6 nhóm để người dùng biết là chưa có, không phải lỗi).
 function customerLookupNonEmptySections(customer) {
@@ -147,21 +143,14 @@ function customerLookupNonEmptySections(customer) {
 
 function exportCustomerLookupExcel(customer) {
   const sections = customerLookupNonEmptySections(customer);
-  const lines = [
-    `KHÁCH HÀNG: ${customer.MaKH} - ${customer.TenKhachHang}`.replace(/\t/g, ' '),
-    ''
-  ];
+  const maxCols = Math.max(1, ...sections.map(s => s.cols.length));
+  let table = xlsRow(xlsCell(`KHÁCH HÀNG: ${customer.MaKH} - ${customer.TenKhachHang}`, { header: true, colspan: maxCols }));
   sections.forEach(s => {
-    lines.push(`${s.title.toUpperCase()} (${s.rows.length})`);
-    lines.push(s.cols.join('\t'));
-    s.rows.forEach(row => lines.push(s.rowText(row).map(customerLookupClean).join('\t')));
-    lines.push('');
+    table += xlsRow(xlsCell(`${s.title.toUpperCase()} (${s.rows.length})`, { header: true, colspan: maxCols, style: 'border:1px solid #000;background:#dcebe5' }));
+    table += xlsRow(s.cols.map(c => xlsCell(c, { header: true })).join(''));
+    table += s.rows.map(row => xlsRow(s.rowText(row).map(v => xlsCell(v)).join(''))).join('');
   });
-  downloadCustomerLookupFile(
-    '﻿' + lines.join('\r\n'),
-    'application/vnd.ms-excel;charset=utf-8',
-    customerLookupFileStem(customer) + '.xls'
-  );
+  xlsDownload(customerLookupFileStem(customer) + '.xls', table);
 }
 
 function customerLookupPrintableHtml(customer, autoPrint) {

@@ -229,6 +229,27 @@ function hoSoReceivedSort(record) {
 }
 function esc(s) { return (s === undefined || s === null) ? '' : String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function sameText(a, b) { return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase(); }
+// Xuat Excel dung chung: mot bang HTML that su (<table><tr><td>) luon duoc
+// Excel nhan dung cau truc du dat duoi .xls, khac voi van ban phan cach
+// bang tab dat duoi .xls - cach do phu thuoc heuristic doan dinh dang cua
+// tung phien ban/locale Excel va co the dua nguyen ca dong vao 1 o thay vi
+// tach cot (da gap loi that o bao cao danh sach khoan vay).
+function xlsCell(value, opts) {
+  opts = opts || {};
+  const tag = opts.header ? 'th' : 'td';
+  const attrs = [`style="${opts.style || 'border:1px solid #000'}"`];
+  if (opts.right) attrs.push('align="right"');
+  if (opts.colspan) attrs.push(`colspan="${opts.colspan}"`);
+  return `<${tag} ${attrs.join(' ')}>${esc(value)}</${tag}>`;
+}
+function xlsRow(cellsHtml) { return `<tr>${cellsHtml}</tr>`; }
+function xlsDownload(filename, tableHtml) {
+  const html = `<html><head><meta charset="utf-8"></head><body><table>${tableHtml}</table></body></html>`;
+  const blob = new Blob(['﻿' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 function toast(msg, isError) {
   const root = document.getElementById('toastRoot');
   const el = document.createElement('div');
