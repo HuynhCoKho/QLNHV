@@ -195,19 +195,20 @@ function printLoanReport(data) {
 // (vd theo tinh/thanh + trang thai cu the) chi vai chuc dong thi khong sao,
 // nhung loc rong (ca thanh pho lon, hang nghin khoan vay) lam canvas cao toi
 // hang tram nghin px - vuot qua gioi han bo nho/kich thuoc canvas cua trinh
-// duyet va ra PDF trang trong (da kiem chung bang html2canvas that: rendering
-// bat dau hong ngay o vai tram dong, ~2.300 dong thi mat ~36s va gan chac
-// chan hong). Voi bao cao qua lon, chuyen sang In truc tiep - trinh duyet tu
-// phan trang khong gioi han kich thuoc - de nguoi dung van "Luu duoi dang
-// PDF" duoc qua hop thoai in, thay vi im lang ra file trang.
+// duyet va ra PDF trang trong hoac loi (da kiem chung bang html2canvas that:
+// rendering bat dau hong ngay o vai tram dong, ~2.300 dong thi mat ~36s va
+// gan chac chan hong). Voi bao cao qua lon, dung exportLoanReportPdfChunked
+// ben duoi: chia thanh nhieu trang nho (moi trang 1 anh rieng), ghep lai
+// thanh 1 file PDF nhieu trang bang jsPDF - khong bao gio tao 1 canvas qua
+// lon. (Tung thu chuyen sang "In truc tiep" cho nguoi dung tu Luu PDF qua
+// hop thoai in cua trinh duyet, nhung nguoi dung bao khong Luu duoc - nen
+// quay lai huong tao PDF that, khong phu thuoc trinh duyet.)
 const LOAN_REPORT_PDF_ROW_LIMIT = 150;
 
-async function exportLoanReportPdf(data) {
+async function exportLoanReportPdf(data, button) {
   if (typeof html2pdf === 'undefined') { printLoanReport(data); return; }
   if (data.rows.length > LOAN_REPORT_PDF_ROW_LIMIT) {
-    toast(`Báo cáo có ${data.rows.length} khoản vay, quá lớn để xuất PDF trực tiếp (dễ ra file trắng). Đang chuyển sang In để bạn lưu PDF qua hộp thoại in của trình duyệt — hoặc thu hẹp bộ lọc tỉnh/thành, trạng thái rồi thử lại.`, true);
-    printLoanReport(data);
-    return;
+    return exportLoanReportPdfChunked(data, button);
   }
   const host = document.createElement('div');
   host.innerHTML = loanReportDocument(data, false).replace(/^.*?<body>/s, '').replace(/<\/body>.*$/s, '');
@@ -229,6 +230,92 @@ async function exportLoanReportPdf(data) {
   }
 }
 
+// So dong/trang duoc do bang thuc nghiem voi html2pdf that (font 8pt, le
+// 8mm, khong lech trang) - dung dinh dang gon hon ban xem truoc de nhieu
+// dong vua 1 trang hon, giam so trang/thoi gian tao PDF cho bao cao lon.
+const LOAN_REPORT_PDF_CHUNK_ROWS = 24;
+const LOAN_REPORT_PDF_MARGIN_MM = 8;
+const LOAN_REPORT_PDF_CONTENT_WIDTH_MM = 297 - 2 * LOAN_REPORT_PDF_MARGIN_MM;
+const LOAN_REPORT_PDF_CONTENT_HEIGHT_MM = 210 - 2 * LOAN_REPORT_PDF_MARGIN_MM;
+
+function loanReportPdfChunks(data, size) {
+  const flat = [];
+  data.groups.forEach(g => g.loans.forEach(r => flat.push({ name: g.name, maKH: g.maKH, loan: r })));
+  const chunks = [];
+  for (let i = 0; i < flat.length; i += size) chunks.push(flat.slice(i, i + size));
+  return chunks;
+}
+
+function loanReportPdfChunkStyles() {
+  return `table.lr-pdf-chunk{width:100%;border-collapse:collapse;table-layout:fixed;font:8pt Arial,sans-serif}table.lr-pdf-chunk th,table.lr-pdf-chunk td{border:1px solid #555;padding:1.5px 3px;vertical-align:top;overflow-wrap:anywhere;line-height:1.15}table.lr-pdf-chunk th{text-align:center;background:#eee}table.lr-pdf-chunk .num{text-align:right}table.lr-pdf-chunk .lr-grand td{font-weight:bold;background:#ddd}`;
+}
+
+function loanReportPdfChunkHtml(chunk, isLastChunk, data) {
+  const rows = chunk.map(item => {
+    const r = item.loan, usd = loanReportUSD(r);
+    return `<tr><td>${esc(item.name)}</td><td>${esc(item.maKH || '—')}</td><td>${esc(r['MÃ SỐ KV'])}</td><td>${esc(r['SỐ VBXN'] || '—')}</td><td>${esc(fmtDateVN(r['NGÀY VBXN']))}</td><td class="num">${esc(fmtNum(r['KIM NGẠCH VAY']))}</td><td>${esc(r['ĐỒNG TIỀN'])}</td><td class="num">${esc(fmtNum(r['DƯ NỢ']))}</td><td>${loanReportStatusLabel(r)}</td><td class="num">${usd === null ? '—' : esc(loanReportFmtUSD(usd))}</td></tr>`;
+  }).join('');
+  const totalRow = isLastChunk ? `<tr class="lr-grand"><td colspan="9">TỔNG CỘNG: ${data.companyCount} doanh nghiệp · ${data.loanCount} khoản vay</td><td class="num">${esc(loanReportFmtUSD(data.totalUSD))}</td></tr>` : '';
+  return `<style>${loanReportPdfChunkStyles()}</style><table class="lr-pdf-chunk"><thead><tr><th>Doanh nghiệp</th><th>Mã KH</th><th>Mã số KV</th><th>Số VBXN</th><th>Ngày VB</th><th>Kim ngạch vay</th><th>Đồng tiền</th><th>Dư nợ</th><th>Trạng thái</th><th>Quy USD</th></tr></thead><tbody>${rows}${totalRow}</tbody></table>`;
+}
+
+// Bao cao qua lon khong duoc render vao 1 canvas duy nhat (xem ly do o
+// exportLoanReportPdf). Thay vao do: chia thanh nhieu "trang" nho, moi
+// trang chup rieng 1 anh (an toan vi da do thuc nghiem vua dung 1 trang
+// A4 ngang), roi dung jsPDF (lay tu chinh worker cua html2pdf, xem
+// loans.js exportLoanHistoryPdf) de ghep tat ca thanh 1 file PDF nhieu
+// trang duy nhat - khong can nguoi dung tu Luu qua hop thoai in.
+async function exportLoanReportPdfChunked(data, button) {
+  const chunks = loanReportPdfChunks(data, LOAN_REPORT_PDF_CHUNK_ROWS);
+  const oldLabel = button && button.textContent;
+  if (button) button.disabled = true;
+  let pdf = null;
+  try {
+    for (let i = 0; i < chunks.length; i++) {
+      if (button) button.textContent = `Đang tạo PDF… trang ${i + 1}/${chunks.length}`;
+      const host = document.createElement('div');
+      host.style.width = LOAN_REPORT_PDF_CONTENT_WIDTH_MM + 'mm';
+      host.style.background = '#fff';
+      host.innerHTML = loanReportPdfChunkHtml(chunks[i], i === chunks.length - 1, data);
+      document.body.appendChild(host);
+      try {
+        if (i === 0) {
+          const worker = html2pdf().set({
+            margin: LOAN_REPORT_PDF_MARGIN_MM,
+            image: { type: 'jpeg', quality: 0.92 },
+            html2canvas: { scale: 1.5, useCORS: true },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+            pagebreak: { mode: ['css', 'legacy'], avoid: 'tr' }
+          }).from(host).toPdf();
+          pdf = await worker.get('pdf');
+        } else {
+          const canvas = await html2pdf().set({ html2canvas: { scale: 1.5, useCORS: true } }).from(host).toCanvas().get('canvas');
+          const imgData = canvas.toDataURL('image/jpeg', 0.92);
+          let imgHmm = (canvas.height / canvas.width) * LOAN_REPORT_PDF_CONTENT_WIDTH_MM;
+          let imgWmm = LOAN_REPORT_PDF_CONTENT_WIDTH_MM;
+          // Phong ngua truong hop hiem: 1 trang co dong bi wrap nhieu dong
+          // hon du kien nen cao hon 1 trang - thu nho ty le thay vi de bi
+          // cat mat noi dung.
+          if (imgHmm > LOAN_REPORT_PDF_CONTENT_HEIGHT_MM) {
+            const ratio = LOAN_REPORT_PDF_CONTENT_HEIGHT_MM / imgHmm;
+            imgHmm = LOAN_REPORT_PDF_CONTENT_HEIGHT_MM;
+            imgWmm = imgWmm * ratio;
+          }
+          pdf.addPage();
+          pdf.addImage(imgData, 'JPEG', LOAN_REPORT_PDF_MARGIN_MM, LOAN_REPORT_PDF_MARGIN_MM, imgWmm, imgHmm);
+        }
+      } finally {
+        host.remove();
+      }
+    }
+    pdf.save(loanReportFileStem(data) + '.pdf');
+  } catch (err) {
+    toast('Không tạo được PDF: ' + err.message, true);
+  } finally {
+    if (button) { button.disabled = false; button.textContent = oldLabel; }
+  }
+}
+
 function showLoanReport(data) {
   const meta = loanReportMeta(data);
   openModal('Danh sách khoản vay nước ngoài', `
@@ -245,7 +332,7 @@ function showLoanReport(data) {
     if (!data.rows.length) return;
     el.querySelector('#lrExcel').onclick = () => exportLoanReportExcel(data);
     el.querySelector('#lrWord').onclick = () => exportLoanReportWord(data);
-    el.querySelector('#lrPdf').onclick = () => exportLoanReportPdf(data);
+    el.querySelector('#lrPdf').onclick = e => exportLoanReportPdf(data, e.currentTarget);
     el.querySelector('#lrPrint').onclick = () => printLoanReport(data);
   });
 }
