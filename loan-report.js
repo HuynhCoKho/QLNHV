@@ -142,15 +142,24 @@ function loanReportExcelClean(value) {
   return String(value ?? '').replace(/\t|\r?\n/g, ' ');
 }
 
+// Chia cho ty gia co the ra rat nhieu chu so thap phan (vd 62407292.956651695).
+// Lam tron 2 so va giu dau cham (khong dung dinh dang vi-VN co dau phay/cham
+// nguoc lai) de Excel/Sheets van nhan dung la mot so that su o moi locale,
+// khong bi doc nham thanh van ban.
+function loanReportExcelUSD(usd) {
+  if (usd === null || usd === undefined || usd === '' || isNaN(usd)) return '';
+  return Number(usd).toFixed(2);
+}
+
 function exportLoanReportExcel(data) {
   const lines = [['TT', 'Doanh nghiệp', 'Mã KH', 'Mã số khoản vay', 'Số VBXN', 'Ngày VB', 'Kim ngạch vay', 'Đồng tiền', 'Dư nợ', 'Trạng thái', 'Quy USD'].join('\t')];
   let n = 0;
   data.groups.forEach(g => g.loans.forEach(r => {
     n++;
     const usd = loanReportUSD(r);
-    lines.push([n, g.name, g.maKH, r['MÃ SỐ KV'], r['SỐ VBXN'], fmtDateVN(r['NGÀY VBXN']), r['KIM NGẠCH VAY'], r['ĐỒNG TIỀN'], r['DƯ NỢ'], loanReportStatusLabel(r), usd === null ? '' : usd].map(loanReportExcelClean).join('\t'));
+    lines.push([n, g.name, g.maKH, r['MÃ SỐ KV'], r['SỐ VBXN'], fmtDateVN(r['NGÀY VBXN']), r['KIM NGẠCH VAY'], r['ĐỒNG TIỀN'], r['DƯ NỢ'], loanReportStatusLabel(r), loanReportExcelUSD(usd)].map(loanReportExcelClean).join('\t'));
   }));
-  lines.push(['', `TỔNG CỘNG: ${data.companyCount} doanh nghiệp · ${data.loanCount} khoản vay`, '', '', '', '', '', '', '', '', data.totalUSD].map(loanReportExcelClean).join('\t'));
+  lines.push(['', `TỔNG CỘNG: ${data.companyCount} doanh nghiệp · ${data.loanCount} khoản vay`, '', '', '', '', '', '', '', '', loanReportExcelUSD(data.totalUSD)].map(loanReportExcelClean).join('\t'));
   loanReportDownload('﻿' + lines.join('\r\n'), 'application/vnd.ms-excel;charset=utf-8', loanReportFileStem(data) + '.xls');
 }
 
