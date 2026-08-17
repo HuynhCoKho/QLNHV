@@ -1000,21 +1000,27 @@ function openHoSoForm(rec, afterSave, forceNew = false) {
         }
         // Khong tai lai toan bo hon 15.000 ho so sau moi lan luu.
         // Du lieu vua luu da co san trong form va duoc cap nhat truc tiep vao bo nho.
-        // Hồ sơ đã được lưu thành công ở thời điểm này. Đồng bộ các bảng tổng
-        // hợp là bước sau, không được biến lỗi đồng bộ thành thông báo "chưa
-        // lưu" khiến người dùng bấm lại và tạo/kiểm tra trùng sai nghiệp vụ.
-        const syncResults = await Promise.allSettled([
-          syncLoanFromCase(data),
-          syncLendingFromCase(data),
-          syncInvestmentFromCase(data)
-        ]);
-        const syncErrors = syncResults.filter(x => x.status === 'rejected').map(x => x.reason && x.reason.message || String(x.reason));
-        toast(syncErrors.length
-          ? 'Đã lưu hồ sơ ' + data.MaHoSo + '; chưa đồng bộ được bảng tổng hợp: ' + syncErrors.join(' · ')
-          : 'Đã lưu hồ sơ ' + data.MaHoSo,
-          syncErrors.length > 0);
+        // Hồ sơ đã được lưu thành công ở thời điểm này - đóng form ngay, không
+        // bắt người dùng đợi thêm các cuộc gọi đồng bộ Khoanvay/ChoVay/DTRNNN
+        // phía sau (mỗi cuộc gọi Apps Script tốn thời gian riêng, cộng dồn lại
+        // thành chậm rõ rệt với hồ sơ có gắn khoản vay/cho vay/dự án).
+        toast('Đã lưu hồ sơ ' + data.MaHoSo);
         closeModal();
         if (typeof afterSave === 'function') afterSave(data); else renderHoSo();
+        // Đồng bộ các bảng tổng hợp chạy ngầm phía sau. Không được biến lỗi
+        // đồng bộ thành thông báo "chưa lưu" - hồ sơ đã lưu xong rồi, đây chỉ
+        // là bước phụ; nếu lỗi thì báo riêng bằng toast thứ hai.
+        (async () => {
+          const syncResults = await Promise.allSettled([
+            syncLoanFromCase(data),
+            syncLendingFromCase(data),
+            syncInvestmentFromCase(data)
+          ]);
+          const syncErrors = syncResults.filter(x => x.status === 'rejected').map(x => x.reason && x.reason.message || String(x.reason));
+          if (syncErrors.length) {
+            toast('Hồ sơ ' + data.MaHoSo + ' đã lưu nhưng chưa đồng bộ được bảng tổng hợp: ' + syncErrors.join(' · '), true);
+          }
+        })();
       } catch (err) {
         toast(err.message, true);
         submitBtn.disabled = false;
