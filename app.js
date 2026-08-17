@@ -683,7 +683,7 @@ function renderHoSo() {
     </div>
     <div class="card"><div class="table-wrap"><table>
       <thead><tr>
-        <th>Mã hồ sơ</th><th>Khách hàng</th><th>TTHC</th><th>Ngày tiếp nhận</th><th>Hẹn trả</th><th>Chuyên viên</th><th>Trạng thái</th><th></th>
+        <th>Mã hồ sơ</th><th>Khách hàng</th><th>TTHC</th><th>Ngày tiếp nhận</th><th>Hẹn trả</th><th>Chuyên viên</th><th>Trạng thái</th><th>Loại VB xử lý</th><th></th>
       </tr></thead>
       <tbody id="hsBody"></tbody>
     </table></div>
@@ -716,7 +716,7 @@ function renderHoSo() {
 
     const body = document.getElementById('hsBody');
     if (!filtered.length) {
-      body.innerHTML = `<tr><td colspan="8"><div class="empty-state"><h3>Chưa có hồ sơ nào</h3><p>Bấm "+ Hồ sơ mới" để bắt đầu.</p></div></td></tr>`;
+      body.innerHTML = `<tr><td colspan="9"><div class="empty-state"><h3>Chưa có hồ sơ nào</h3><p>Bấm "+ Hồ sơ mới" để bắt đầu.</p></div></td></tr>`;
       document.getElementById('hsPager').innerHTML = '';
       return;
     }
@@ -729,6 +729,7 @@ function renderHoSo() {
         <td class="mono">${esc(fmtDateVN(r.NgayHenTra))}</td>
         <td>${esc(cvName(r.MaCV) || r.MaCV)}</td>
         <td>${statusBadge(r.TrangThai)}</td>
+        <td>${esc(r.LoaiVanBanXuLy) || '—'}</td>
         <td class="cell-actions">
           <button class="btn btn-outline btn-sm" data-edit="${esc(r.MaHoSo)}">Sửa</button>
           <button class="btn btn-danger btn-sm" data-del="${esc(r.MaHoSo)}">Xóa</button>
