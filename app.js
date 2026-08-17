@@ -980,8 +980,16 @@ function openHoSoForm(rec, afterSave, forceNew = false) {
         };
         if (isEdit) {
           await apiPost('update', 'HoSo', data, rec.MaHoSo, 'MaKhoanVay', rec.MaKhoanVay || '');
+          // Bản ghi trong DB.HoSo co the la du lieu "lite" cua trang danh sach
+          // (khong co MaKhoanVay - bi bo qua de tai nhanh ~1.400 ho so), luc do
+          // x.MaKhoanVay la undefined chu khong phai ''. Neu bat so khop tuyet
+          // doi ca MaKhoanVay, dieu kien se luon sai voi ban ghi lite va ban ghi
+          // vua luu se khong duoc cap nhat tai cho - bang danh sach hien du
+          // lieu cu cho toi khi tai lai trang. Coi MaKhoanVay chua tung tai
+          // (undefined) la "chua biet", chi loai tru khi gia tri do THUC SU
+          // khac nhau giua 2 ban ghi.
           const idx = DB.HoSo.findIndex(x => String(x.MaHoSo) === String(rec.MaHoSo)
-            && (!rec.MaKhoanVay || String(x.MaKhoanVay || '') === String(rec.MaKhoanVay)));
+            && (!rec.MaKhoanVay || x.MaKhoanVay === undefined || String(x.MaKhoanVay || '') === String(rec.MaKhoanVay)));
           if (idx !== -1) DB.HoSo[idx] = { ...DB.HoSo[idx], ...data, _id: data.MaHoSo };
         } else {
           const duplicate = DB.HoSo.some(x =>
