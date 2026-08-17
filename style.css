@@ -567,6 +567,7 @@ body:not(.auth-locked) .auth-gate{
 .hsr-subtotal td,.hsr-province-total td,.hsr-grand td{font-weight:700}
 .hsr-province-total td{background:#f3f1eb}.hsr-grand td{background:#dedbd2}
 .hsr-check{font-size:18px;font-weight:700;color:#13795b}
+.hsr-vbxl{margin-top:2px;font-size:10px}
 
 /* Báo cáo khách hàng theo nhóm nghiệp vụ */
 .customer-group-report-preview{max-height:66vh}
