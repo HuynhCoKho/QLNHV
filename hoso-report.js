@@ -27,7 +27,10 @@ function hsrBuild(fromValue,toValue){
 function hsrCounts(rows){const counts=Object.fromEntries(TRANGTHAI_HOSO.map(s=>[s,0]));rows.forEach(r=>{const status=String(r.TrangThai||'').trim();if(counts[status]!==undefined)counts[status]++});return counts}
 function hsrUSDAmount(row){
   let total=0,hasAmount=false;
-  const addConverted=(amount,currency)=>{const value=parseNum(amount);if(value===''||!currency)return;const usd=toUSD(value,currency);if(usd!==null&&Number.isFinite(Number(usd))){total+=Number(usd);hasAmount=true}};
+  // Sheet TyGia thuong khong co dong 'USD' (vi day la dong tien goc, khong
+  // can quy doi) nen toUSD() se tra ve null cho khoan vay/cho vay bang USD
+  // neu goi thang. Cung cach xu ly nhu loanReportUSD() trong loan-report.js.
+  const addConverted=(amount,currency)=>{const value=parseNum(amount);if(value===''||!currency)return;const usd=String(currency).toUpperCase()==='USD'?Number(value):toUSD(value,currency);if(usd!==null&&Number.isFinite(Number(usd))){total+=Number(usd);hasAmount=true}};
   addConverted(row.SoTienVayNguyenTe,row.NguyenTeVay);
   addConverted(row.SoTienChoVayNguyenTe,row.NguyenTeChoVay);
   const investment=parseNum(row.SoTienDangKyNguyenTe);
