@@ -56,7 +56,15 @@ async function fetchWithTimeout(url, options, timeoutMs) {
   try {
     return await fetch(url, { ...options, signal: controller.signal });
   } catch (err) {
-    if (err.name === 'AbortError') throw new Error('Kết nối tới máy chủ quá lâu (quá ' + Math.round(timeoutMs / 1000) + 's). Vui lòng thử lại.');
+    // Đánh dấu đây là lỗi tầng mạng (mất kết nối/timeout/bị chặn), khác với lỗi
+    // nghiệp vụ do backend chủ động trả về, để apiPost() biết khi nào có thể an
+    // toàn xác nhận lại với máy chủ thay vì chỉ báo lỗi cho người dùng.
+    if (err.name === 'AbortError') {
+      const timeoutErr = new Error('Kết nối tới máy chủ quá lâu (quá ' + Math.round(timeoutMs / 1000) + 's). Vui lòng thử lại.');
+      timeoutErr.transient = true;
+      throw timeoutErr;
+    }
+    err.transient = true;
     throw err;
   } finally {
     clearTimeout(timer);
@@ -103,8 +111,13 @@ async function apiPost(action, sheet, data, id, matchField, matchValue) {
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body
       }, timeoutMs);
-      if (!res.ok) throw new Error(`Máy chủ phản hồi lỗi ${res.status}`);
-      const json = await res.json();
+      if (!res.ok) { const e = new Error(`Máy chủ phản hồi lỗi ${res.status}`); e.transient = true; throw e; }
+      let json;
+      try { json = await res.json(); }
+      catch (parseErr) { const e = new Error('Không đọc được phản hồi từ máy chủ.'); e.transient = true; throw e; }
+      // json.error la loi nghiep vu backend chu dong tra ve (vd: thieu du
+      // lieu, sai dinh dang) - KHONG danh dau transient, vi day khong phai
+      // dau hieu mat ket noi va khong nen kich hoat buoc xac nhan lai ben duoi.
       if (json.error) throw new Error(json.error);
       return json;
     } catch (err) {
@@ -127,6 +140,35 @@ async function apiPost(action, sheet, data, id, matchField, matchValue) {
       body
     });
     return { ok: true, verifyRequired: true };
+  }
+  // CREATE không được thử lại tự động ở vòng lặp trên vì thao tác này không
+  // idempotent (gửi lại y hệt có thể tạo trùng dòng mới). Nhưng nếu lỗi vừa
+  // gặp là lỗi TẦNG MẠNG (mất kết nối, timeout, phản hồi bị chặn...) chứ không
+  // phải lỗi nghiệp vụ do backend chủ động trả về, thì rất có thể Apps Script
+  // đã ghi xong dòng mới trước khi trình duyệt kịp nhận phản hồi - đặc biệt dễ
+  // xảy ra với sheet Hồ sơ có tới ~15.000 dòng khiến phản hồi chậm.
+  // Hậu quả nếu bỏ qua trường hợp này: người dùng thấy báo lỗi dù dữ liệu đã
+  // được lưu, bấm lưu lại thì bị từ chối vì "đã tồn tại", và bảng danh sách
+  // không hiện dòng mới cho tới khi tải lại trang (đây chính là lỗi đã gặp).
+  // Thay vì đoán, đọc lại bản ghi theo id để xác nhận thực tế trên máy chủ
+  // trước khi kết luận là lỗi thật và bắt người dùng thử lại thủ công.
+  if (action === 'create' && id && lastError && lastError.transient) {
+    try {
+      const existing = await apiGet('get', { sheet, id });
+      // apiGet() đã tự throw nếu backend trả { error: ... }, nên tới đây coi
+      // như không có lỗi tường minh. Nhưng vẫn cần chắc chắn đây thực sự là
+      // bản ghi vừa tạo (không phải object rỗng/placeholder mà backend lỡ trả
+      // về cho trường hợp "không tìm thấy") trước khi báo thành công: bản ghi
+      // phải có dữ liệu và phải chứa đúng giá trị id đang tìm.
+      const looksLikeRecord = existing && typeof existing === 'object'
+        && Object.keys(existing).length > 0
+        && JSON.stringify(existing).toLowerCase().includes(String(id).trim().toLowerCase());
+      if (looksLikeRecord) return { ok: true, verifyRequired: true, existing };
+    } catch (verifyErr) {
+      // Không xác nhận được với máy chủ (vd: cũng mất mạng) -> vẫn báo lỗi
+      // gốc, an toàn để người dùng thử lại: nếu lúc đó bản ghi đã thực sự tồn
+      // tại, hệ thống sẽ tự báo "đã tồn tại" thay vì tạo trùng.
+    }
   }
   throw lastError;
 }
@@ -995,7 +1037,7 @@ function openHoSoForm(rec, afterSave, forceNew = false) {
           const duplicate = DB.HoSo.some(x =>
             String(x.MaHoSo || '').trim().toLowerCase() === String(data.MaHoSo || '').trim().toLowerCase());
           if (duplicate) throw new Error('Mã hồ sơ "' + data.MaHoSo + '" đã tồn tại. Mỗi mã hồ sơ chỉ được tạo một lần.');
-          await apiPost('create', 'HoSo', data);
+          await apiPost('create', 'HoSo', data, data.MaHoSo);
           DB.HoSo.push({ ...data, _id: data.MaHoSo });
         }
         // Khong tai lai toan bo hon 15.000 ho so sau moi lan luu.
@@ -1362,7 +1404,7 @@ function openKHForm(rec) {
           updateCustomerCodeInMemory(oldCode,data.MaKH);
         }
         else if (isEdit) await apiPost('update', 'KhachHang', data, oldCode);
-        else await apiPost('create', 'KhachHang', data);
+        else await apiPost('create', 'KhachHang', data, data.MaKH);
         if(isEdit)Object.assign(rec,data);else DB.KhachHang.push(data);
         toast('Đã lưu khách hàng ' + data.MaKH);
         closeModal();
@@ -1493,7 +1535,7 @@ function openTTHCForm(rec) {
       try {
         const saved = isEdit
           ? await apiPost('update', 'TTHC', data, data.MaTTHC)
-          : await apiPost('create', 'TTHC', data);
+          : await apiPost('create', 'TTHC', data, data.MaTTHC);
         if (saved && saved.verifyRequired) {
           saveBtn.textContent = 'Đang kiểm tra…';
           await new Promise(r => setTimeout(r, 700));
@@ -1603,7 +1645,7 @@ function openCVForm(rec) {
       data.MaCV = data.MaCV.trim();
       try {
         if (isEdit) await apiPost('update', 'ChuyenVien', data, data.MaCV);
-        else await apiPost('create', 'ChuyenVien', data);
+        else await apiPost('create', 'ChuyenVien', data, data.MaCV);
         toast('Đã lưu chuyên viên ' + data.MaCV);
         closeModal();
         await reloadSheet('ChuyenVien');
@@ -1705,7 +1747,7 @@ function openNNVForm(rec) {
       data.TenNhom = data.TenNhom.trim();
       try {
         if (isEdit) await apiPost('update', 'NhomNghiepVu', data, data.TenNhom);
-        else await apiPost('create', 'NhomNghiepVu', data);
+        else await apiPost('create', 'NhomNghiepVu', data, data.TenNhom);
         toast('Đã lưu nhóm nghiệp vụ ' + data.TenNhom);
         closeModal();
         await reloadSheet('NhomNghiepVu');
@@ -1852,7 +1894,7 @@ function openTinhThanhForm(rec) {
             if (String(k.DiaChiTinhTP || '').trim() === originalTenTinh) k.DiaChiTinhTP = data.TenTinh;
           });
         } else if (isEdit) await apiPost('update', 'TinhThanh', data, originalTenTinh);
-        else await apiPost('create', 'TinhThanh', data);
+        else await apiPost('create', 'TinhThanh', data, data.TenTinh);
         toast('Đã lưu ' + data.TenTinh);
         closeModal();
         await reloadSheet('TinhThanh');
@@ -1932,7 +1974,7 @@ function openPhuongXaForm(rec) {
       data.TenPhuongXa = data.TenPhuongXa.trim();
       try {
         if (isEdit) await apiPost('update', 'PhuongXa', data, data.TenPhuongXa);
-        else await apiPost('create', 'PhuongXa', data);
+        else await apiPost('create', 'PhuongXa', data, data.TenPhuongXa);
         toast('Đã lưu ' + data.TenPhuongXa);
         closeModal();
         await reloadSheet('PhuongXa');
