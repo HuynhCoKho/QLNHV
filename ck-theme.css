@@ -18,3 +18,6 @@ body::after { content:""; position:fixed; left:auto; top:auto; right:calc(10px +
 .auth-card { border-radius:24px; }
 .auth-card h1 { color:#167d5d; }
 @media(max-width:760px) { .topbar h1 { font-size:28px; }.brand-title { font-size:28px; } }
+
+/* Loading messages are status text, not decorative page titles. */
+.topbar h1.is-loading { font-family:Inter,"Segoe UI",sans-serif;font-size:20px;font-weight:500;line-height:1.5;color:var(--ink-soft);text-shadow:none;-webkit-text-stroke:0; }
