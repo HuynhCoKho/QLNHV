@@ -3,9 +3,9 @@ body { --ck-background: url("data:image/webp;base64,UklGRmhVAABXRUJQVlA4IFxVAADQ
 body::before { content:""; position:fixed; inset:10px; width:auto; height:auto; border-radius:20px; background:var(--ck-background) center/100% 100% no-repeat; box-shadow:none; opacity:1; transform:none; pointer-events:none; z-index:0; }
 body::after { content:""; position:fixed; left:auto; top:auto; right:calc(10px + (100vw - 20px)*.03349); bottom:calc(10px + (100dvh - 20px)*.06057); width:calc((100vw - 20px)*.07656); height:calc((100dvh - 20px)*.14028); border-radius:0; background:var(--ck-background) 96.373% 92.954%/1306.25% 712.88% no-repeat; box-shadow:none; opacity:1; transform:none; pointer-events:none; z-index:2; }
 .hck-owner-stamp { display:none!important; }
-.topbar h1, .brand-title { font-family:"Curlz MT",Curlz,Georgia,serif; font-size:clamp(38px,4.4vw,58px); font-weight:900; line-height:1.15; letter-spacing:0; text-transform:none; color:#159b73; -webkit-text-stroke:.55px #087052; text-shadow:0 -1px 0 #caffea,0 1px 0 #0b8963,1px 2px 0 #087958,2px 3px 0 #076b4e,3px 4px 0 #065c44,4px 5px 0 #054d3a,0 8px 10px rgba(5,63,46,.28),0 14px 22px rgba(5,63,46,.16); }
+.brand-title { font-family:"Curlz MT",Curlz,Georgia,serif; font-size:clamp(38px,4.4vw,58px); font-weight:900; line-height:1.15; letter-spacing:0; text-transform:none; color:#159b73; -webkit-text-stroke:.55px #087052; text-shadow:0 -1px 0 #caffea,0 1px 0 #0b8963,1px 2px 0 #087958,2px 3px 0 #076b4e,3px 4px 0 #065c44,4px 5px 0 #054d3a,0 8px 10px rgba(5,63,46,.28),0 14px 22px rgba(5,63,46,.16); }
 .plant-book,.brand-mark::before { display:none; }
-@media(max-width:760px) { .topbar h1, .brand-title { font-size:38px; } }
+@media(max-width:760px) { .brand-title { font-size:38px; } }
 @media print { body::before,body::after { display:none; } }
 
 :root { --ink:#204c3e;--ink-soft:#4a7061;--paper:#effcf5;--seal:#168b67;--line:#cde5d8; }
@@ -21,3 +21,6 @@ body::after { content:""; position:fixed; left:auto; top:auto; right:calc(10px +
 
 /* Loading messages are status text, not decorative page titles. */
 .topbar h1.is-loading { font-family:Inter,"Segoe UI",sans-serif;font-size:20px;font-weight:500;line-height:1.5;color:var(--ink-soft);text-shadow:none;-webkit-text-stroke:0; }
+
+/* Only the QLNHV brand uses the decorative face. Keep section names readable. */
+.topbar h1 { font-family:"Space Grotesk",sans-serif;font-size:24px;font-weight:700;line-height:1.3;letter-spacing:-.01em;color:var(--ink);text-shadow:none;-webkit-text-stroke:0; }
