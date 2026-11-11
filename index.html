@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css?v=20260817-hsr-status-cell" />
-<link rel="stylesheet" href="ck-theme.css?v=20261111-mint" />
+<link rel="stylesheet" href="ck-theme.css?v=20261111-status" />
 </head>
 <body class="auth-locked">
 
@@ -113,6 +113,15 @@
   @media print{.hck-owner-stamp{display:none!important}}
 </style>
 <!-- /Huynh Co Kho ownership stamp -->
+<script>
+(() => {
+  const title = document.getElementById('pageTitle');
+  if (!title) return;
+  const updateTitleStyle = () => title.classList.toggle('is-loading', /đang tải/i.test(title.textContent));
+  new MutationObserver(updateTitleStyle).observe(title, { childList: true, characterData: true, subtree: true });
+  updateTitleStyle();
+})();
+</script>
 </body>
 </html>
 
