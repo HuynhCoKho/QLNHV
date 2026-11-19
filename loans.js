@@ -445,7 +445,7 @@ async function showLoanHistory(maKV) {
       el.querySelector('#loanHistoryPdf').onclick=event=>exportLoanHistoryPdf(exportData,event.currentTarget);
       el.querySelector('#loanHistoryPrint').onclick=()=>printLoanHistoryA4(exportData);
       el.querySelector('#loanClose').onclick=closeModal;
-      el.querySelector('#addLoanHistory').onclick=()=>openHoSoForm({MaKH,MaKhoanVay:maKV,TrangThai:'Đã xử lý',MaCV:'CK',NguyenTeVay:master&&master['ĐỒNG TIỀN'],SoTienVayNguyenTe:master&&master['KIM NGẠCH VAY']},()=>showLoanHistory(maKV),true);
+      el.querySelector('#addLoanHistory').onclick=()=>openHoSoForm({MaKH:maKH,MaKhoanVay:maKV,TrangThai:'Đã xử lý',MaCV:'CK',NguyenTeVay:master&&master['ĐỒNG TIỀN'],SoTienVayNguyenTe:master&&master['KIM NGẠCH VAY']},()=>showLoanHistory(maKV),true);
       el.querySelectorAll('[data-hist-edit]').forEach(b=>b.onclick=async()=>{
         const x=hist[Number(b.dataset.histEdit)];
         if(x.kind==='manual') return openLoanForm(master);
