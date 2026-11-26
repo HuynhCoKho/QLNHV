@@ -44,6 +44,8 @@ const ROUTE_SHEETS = {
   vphc:['KhachHang','VPHC','NhomNghiepVu','ChuyenVien']
 };
 const LOADED_SHEETS = new Set();
+const PENDING_SHEETS = new Map();
+let fullHoSoLoaded = false;
 let routeLoadToken = 0;
 
 // ---------------- API helpers ----------------
@@ -86,11 +88,16 @@ async function apiGet(action, params = {}) {
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       const res = await fetchWithTimeout(url, undefined, 45000);
+      if (!res.ok) {
+        const error = new Error(`Máy chủ phản hồi lỗi ${res.status}`);
+        error.transient = res.status >= 500 || res.status === 429;
+        throw error;
+      }
       const json = await res.json();
       if (json.error) throw new Error(json.error);
       return json;
     } catch (err) {
-      if (attempt === 2) throw err;
+      if (attempt === 2 || !err.transient) throw err;
       await new Promise(r => setTimeout(r, 700)); // cho 1 chut roi thu lai (Apps Script doi khi loi tam thoi)
     }
   }
@@ -122,24 +129,11 @@ async function apiPost(action, sheet, data, id, matchField, matchValue) {
       return json;
     } catch (err) {
       lastError = err;
-      if (attempt === maxAttempts) {
+      if (attempt === maxAttempts || !err.transient) {
         break;
       }
       await new Promise(r => setTimeout(r, 900));
     }
-  }
-  // Phản hồi ContentService của Apps Script đi qua script.googleusercontent.com.
-  // Một số phiên Chrome chặn/đóng phản hồi redirect và ném Failed to fetch dù
-  // doPost vẫn chạy. Với UPDATE (idempotent), gửi dự phòng ở no-cors; màn hình
-  // gọi hàm này sẽ đọc lại sheet để xác nhận kết quả thực tế.
-  if (action === 'update' && /failed to fetch/i.test(String(lastError && lastError.message))) {
-    await fetch(API_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body
-    });
-    return { ok: true, verifyRequired: true };
   }
   // CREATE không được thử lại tự động ở vòng lặp trên vì thao tác này không
   // idempotent (gửi lại y hệt có thể tạo trùng dòng mới). Nhưng nếu lỗi vừa
@@ -162,7 +156,8 @@ async function apiPost(action, sheet, data, id, matchField, matchValue) {
       // phải có dữ liệu và phải chứa đúng giá trị id đang tìm.
       const looksLikeRecord = existing && typeof existing === 'object'
         && Object.keys(existing).length > 0
-        && JSON.stringify(existing).toLowerCase().includes(String(id).trim().toLowerCase());
+        && String(existing._id).trim().toLowerCase() === String(id).trim().toLowerCase()
+        && Object.entries(data).every(([key, value]) => String(existing[key] ?? '') === String(value ?? ''));
       if (looksLikeRecord) return { ok: true, verifyRequired: true, existing };
     } catch (verifyErr) {
       // Không xác nhận được với máy chủ (vd: cũng mất mạng) -> vẫn báo lỗi
@@ -362,45 +357,39 @@ async function boot() {
   }
 }
 
-async function loadAll() {
-  // Tải theo nhóm nhỏ: nhanh hơn tải tuần tự 18 lần nhưng không dồn quá nhiều
-  // yêu cầu cùng lúc khiến Apps Script thiếu ổn định.
-  const sheets=['KhachHang','LoaiHinhKhachHang','ChuyenVien','TTHC','TyGia','HoSo','Khoanvay','ChoVay','DTRNNN','DTRNNN_NDT','Campuchia','VPHC','NhomNghiepVu','TinhThanh','PhuongXa','QG','TKNHTONN','BCMoTKnTONN'];
-  const title=document.getElementById('pageTitle');
-  let completed=0;
-  for(let i=0;i<sheets.length;i+=3){
-    const batch=sheets.slice(i,i+3);
-    await Promise.all(batch.map(async sheet=>{
-      try{DB[sheet]=await apiGet('list',{sheet});}
-      catch(err){if(sheet==='VPHC')DB.VPHC=[];else throw err;}
-      completed++;
-      if(title)title.textContent=`Chào mừng đến Trang quản lý công việc của Cỏ Khô — đang tải ${completed}/${sheets.length}`;
-    }));
+async function ensureSheets(sheets) {
+  const pending = sheets.filter(sheet => !LOADED_SHEETS.has(sheet) && PENDING_SHEETS.has(sheet));
+  const missing = sheets.filter(sheet => !LOADED_SHEETS.has(sheet) && !PENDING_SHEETS.has(sheet));
+  const requests = new Set(pending.map(sheet => PENDING_SHEETS.get(sheet)));
+  if (missing.length) {
+    const params = { sheets: missing.join(',') };
+    if (missing.includes('HoSo')) params.lite = 'HoSo';
+    const request = (async () => {
+      const bundle = await apiGet('batchList', params);
+      for (const sheet of missing) {
+        if (!Array.isArray(bundle[sheet])) throw new Error('Thiếu dữ liệu bảng ' + sheet);
+      }
+      for (const sheet of missing) {
+        if (sheet === 'HoSo' && fullHoSoLoaded) continue;
+        if (sheet === 'HoSo') {
+          const detailed = new Map(DB.HoSo.filter(row => row._row != null).map(row => [row._row, row]));
+          DB.HoSo = bundle.HoSo.map(row => {
+            const prior = detailed.get(row._row);
+            return prior && prior.MaHoSo === row.MaHoSo ? { ...prior, ...row } : row;
+          });
+        } else DB[sheet] = bundle[sheet];
+        LOADED_SHEETS.add(sheet);
+      }
+      normalizeIds();
+    })().finally(() => missing.forEach(sheet => PENDING_SHEETS.delete(sheet)));
+    missing.forEach(sheet => PENDING_SHEETS.set(sheet, request));
+    requests.add(request);
   }
-  normalizeIds();
+  await Promise.all(requests);
 }
 
-async function ensureRouteData(routeName,token) {
-  const sheets=ROUTE_SHEETS[routeName]||ROUTE_SHEETS.hoso;
-  const missing=sheets.filter(sheet=>!LOADED_SHEETS.has(sheet));
-  if(!missing.length)return;
-  const title=document.getElementById('pageTitle');
-  if(token===routeLoadToken&&title)title.textContent='Đang tải dữ liệu cần thiết…';
-  try {
-    // Một request duy nhất để Apps Script chỉ mở Google Sheet một lần.
-    const params={sheets:missing.join(',')};
-    if(routeName==='hoso'&&missing.includes('HoSo'))params.lite='HoSo';
-    const bundle=await apiGet('batchList',params);
-    missing.forEach(sheet=>{DB[sheet]=Array.isArray(bundle[sheet])?bundle[sheet]:[];LOADED_SHEETS.add(sheet)});
-  } catch (batchError) {
-    // Tương thích với deployment cũ trong thời gian Apps Script chưa cập nhật.
-    await Promise.all(missing.map(async sheet=>{
-      try{DB[sheet]=await apiGet('list',{sheet});}
-      catch(err){if(sheet==='VPHC')DB.VPHC=[];else throw err;}
-      LOADED_SHEETS.add(sheet);
-    }));
-  }
-  normalizeIds();
+function ensureRouteData(routeName) {
+  return ensureSheets(ROUTE_SHEETS[routeName] || ROUTE_SHEETS.hoso);
 }
 
 let hoSoSpecialLoadPromise = null;
@@ -412,19 +401,26 @@ let hoSoSpecialLoaded = false;
 // Nếu Apps Script chưa được cập nhật/deploy lại action 'hosoSpecial', tự động
 // quay về cách cũ (tải cả sheet Hồ sơ) để tính năng vẫn hoạt động bình thường.
 async function ensureHoSoSpecial() {
-  if (hoSoSpecialLoaded || LOADED_SHEETS.has('HoSo')) return;
+  if (hoSoSpecialLoaded || fullHoSoLoaded) return;
   if (hoSoSpecialLoadPromise) return hoSoSpecialLoadPromise;
   hoSoSpecialLoadPromise = (async () => {
     try {
       const rows = await apiGet('hosoSpecial');
-      const existingRows = new Set(DB.HoSo.map(h => h._row).filter(r => r != null));
-      (rows || []).forEach(r => { if (!existingRows.has(r._row)) { DB.HoSo.push(r); existingRows.add(r._row); } });
+      if (fullHoSoLoaded) return;
+      const byRow = new Map(DB.HoSo.filter(row => row._row != null).map(row => [row._row, row]));
+      for (const row of rows) {
+        const current = byRow.get(row._row);
+        if (current && current.MaHoSo === row.MaHoSo) Object.assign(current, row);
+        else if (!LOADED_SHEETS.has('HoSo')) DB.HoSo.push(row);
+      }
       normalizeIds();
       hoSoSpecialLoaded = true;
     } catch (err) {
       if (!/unknown action/i.test(err.message || '')) throw err;
       const bundle = await apiGet('batchList', { sheets: 'HoSo' });
-      DB.HoSo = Array.isArray(bundle.HoSo) ? bundle.HoSo : [];
+      if (!Array.isArray(bundle.HoSo)) throw new Error('Thiếu dữ liệu bảng HoSo');
+      DB.HoSo = bundle.HoSo;
+      fullHoSoLoaded = true;
       LOADED_SHEETS.add('HoSo');
       normalizeIds();
     }
@@ -506,9 +502,37 @@ function normalizeIds() {
 
 async function reloadSheet(sheet) {
   DB[sheet] = await apiGet('list', { sheet });
+  if (sheet === 'HoSo') fullHoSoLoaded = true;
   LOADED_SHEETS.add(sheet);
   normalizeIds();
   return DB[sheet];
+}
+
+async function mutateCachedRow(action, sheet, data, id) {
+  const result = await apiPost(action, sheet, data, id);
+  const record = result.record || result.existing;
+  if (action === 'delete' && Number.isInteger(result.row)) {
+    const cached = DB[sheet].find(row => row._row === result.row);
+    if (cached && String(cached._id) !== String(id)) {
+      await reloadSheet(sheet);
+      return result;
+    }
+    DB[sheet] = DB[sheet].filter(row => row._row !== result.row &&
+      (row._row != null || String(row._id) !== String(id)));
+    for (const row of DB[sheet]) {
+      if (row._row > result.row) row._row--;
+    }
+  } else if (record) {
+    const index = DB[sheet].findIndex(row => row._row != null
+      ? row._row === record._row && String(row._id) === String(id || record._id)
+      : String(row._id) === String(id || record._id));
+    if (index === -1) DB[sheet].push(record);
+    else DB[sheet][index] = record;
+    normalizeIds();
+  } else {
+    await reloadSheet(sheet);
+  }
+  return result;
 }
 
 // ---------------- Router ----------------
@@ -581,7 +605,7 @@ async function route() {
   document.getElementById('pageTitle').textContent = 'Đang tải '+cfg.title+'…';
   document.getElementById('view').innerHTML='<div class="empty-state"><h3>Đang lấy dữ liệu cần thiết…</h3><p>Bạn chỉ cần chờ dữ liệu của chức năng đang mở.</p></div>';
   try{
-    await ensureRouteData(r,token);
+    await ensureRouteData(r);
     if(token!==routeLoadToken)return;
     document.getElementById('pageTitle').textContent=cfg.title;
     cfg.render();
@@ -1021,7 +1045,7 @@ function openHoSoForm(rec, afterSave, forceNew = false) {
           GhiChu: fd.get('GhiChu') || ''
         };
         if (isEdit) {
-          await apiPost('update', 'HoSo', data, rec.MaHoSo, 'MaKhoanVay', rec.MaKhoanVay || '');
+          const saved = await apiPost('update', 'HoSo', data, rec.MaHoSo, 'MaKhoanVay', rec.MaKhoanVay || '');
           // Bản ghi trong DB.HoSo co the la du lieu "lite" cua trang danh sach
           // (khong co MaKhoanVay - bi bo qua de tai nhanh ~1.400 ho so), luc do
           // x.MaKhoanVay la undefined chu khong phai ''. Neu bat so khop tuyet
@@ -1030,15 +1054,17 @@ function openHoSoForm(rec, afterSave, forceNew = false) {
           // lieu cu cho toi khi tai lai trang. Coi MaKhoanVay chua tung tai
           // (undefined) la "chua biet", chi loai tru khi gia tri do THUC SU
           // khac nhau giua 2 ban ghi.
-          const idx = DB.HoSo.findIndex(x => String(x.MaHoSo) === String(rec.MaHoSo)
+          const idx = DB.HoSo.findIndex(x => saved.record && x._row != null
+            ? x._row === saved.record._row && String(x.MaHoSo) === String(rec.MaHoSo)
+            : String(x.MaHoSo) === String(rec.MaHoSo)
             && (!rec.MaKhoanVay || x.MaKhoanVay === undefined || String(x.MaKhoanVay || '') === String(rec.MaKhoanVay)));
-          if (idx !== -1) DB.HoSo[idx] = { ...DB.HoSo[idx], ...data, _id: data.MaHoSo };
+          if (idx !== -1) DB.HoSo[idx] = { ...DB.HoSo[idx], ...data, ...saved.record, _id: data.MaHoSo };
         } else {
           const duplicate = DB.HoSo.some(x =>
             String(x.MaHoSo || '').trim().toLowerCase() === String(data.MaHoSo || '').trim().toLowerCase());
           if (duplicate) throw new Error('Mã hồ sơ "' + data.MaHoSo + '" đã tồn tại. Mỗi mã hồ sơ chỉ được tạo một lần.');
-          await apiPost('create', 'HoSo', data, data.MaHoSo);
-          DB.HoSo.push({ ...data, _id: data.MaHoSo });
+          const saved = await apiPost('create', 'HoSo', data, data.MaHoSo);
+          DB.HoSo.push(saved.record || saved.existing || { ...data, _id: data.MaHoSo });
         }
         // Khong tai lai toan bo hon 15.000 ho so sau moi lan luu.
         // Du lieu vua luu da co san trong form va duoc cap nhat truc tiep vao bo nho.
@@ -1761,9 +1787,8 @@ function openNNVForm(rec) {
 async function deleteRecord(sheet, id, idField, rerender) {
   if (!confirm('Xóa bản ghi "' + id + '"? Hành động này không thể hoàn tác.')) return;
   try {
-    await apiPost('delete', sheet, {}, id);
+    await mutateCachedRow('delete', sheet, {}, id);
     toast('Đã xóa ' + id);
-    await reloadSheet(sheet);
     rerender();
   } catch (err) { toast(err.message, true); }
 }
@@ -2006,14 +2031,14 @@ function openQuocGiaForm(rec) {
   const isEdit = !!rec; rec = rec || {};
   openModal(isEdit ? 'Sửa quốc gia' : 'Thêm quốc gia', `<form id="qgForm"><div class="form-grid"><div class="field"><label>Mã quốc gia *</label><input name="MÃ QUỐC GIA" value="${esc(rec['MÃ QUỐC GIA'] || '')}" ${isEdit ? 'readonly' : ''} required></div><div class="field"><label>Ký hiệu</label><input name="KÝ HIỆU" maxlength="3" value="${esc(rec['KÝ HIỆU'] || '')}"></div><div class="field span-2"><label>Tên quốc gia *</label><input name="TÊN QUỐC GIA" value="${esc(rec['TÊN QUỐC GIA'] || '')}" required></div></div><div class="modal-foot"><button type="button" class="btn btn-outline" id="qgCancel">Hủy</button><button class="btn btn-primary">Lưu</button></div></form>`, el => {
     el.querySelector('#qgCancel').onclick = closeModal;
-    el.querySelector('form').onsubmit = async e => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target).entries()); d['MÃ QUỐC GIA'] = d['MÃ QUỐC GIA'].trim(); d['TÊN QUỐC GIA'] = d['TÊN QUỐC GIA'].trim(); d['KÝ HIỆU'] = d['KÝ HIỆU'].trim().toUpperCase(); try { await apiPost(isEdit ? 'update' : 'create', 'QG', d, isEdit ? rec['MÃ QUỐC GIA'] : undefined); await reloadSheet('QG'); toast('Đã lưu ' + d['TÊN QUỐC GIA']); closeModal(); renderQuocGia(); } catch(err) { toast(err.message, true); } };
+    el.querySelector('form').onsubmit = async e => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target).entries()); d['MÃ QUỐC GIA'] = d['MÃ QUỐC GIA'].trim(); d['TÊN QUỐC GIA'] = d['TÊN QUỐC GIA'].trim(); d['KÝ HIỆU'] = d['KÝ HIỆU'].trim().toUpperCase(); try { await mutateCachedRow(isEdit ? 'update' : 'create', 'QG', d, isEdit ? rec['MÃ QUỐC GIA'] : undefined); toast('Đã lưu ' + d['TÊN QUỐC GIA']); closeModal(); renderQuocGia(); } catch(err) { toast(err.message, true); } };
   });
 }
 
 async function deleteQuocGia(id) {
   if (DB.TKNHTONN.some(r => String(r['QUỐC GIA']) === String(id))) return toast('Không thể xóa quốc gia đang được tài khoản ngoại tệ sử dụng.', true);
   if (!confirm('Xóa quốc gia này?')) return;
-  try { await apiPost('delete', 'QG', {}, id); await reloadSheet('QG'); toast('Đã xóa quốc gia'); renderQuocGia(); } catch(err) { toast(err.message, true); }
+  try { await mutateCachedRow('delete', 'QG', {}, id); toast('Đã xóa quốc gia'); renderQuocGia(); } catch(err) { toast(err.message, true); }
 }
 
 function wireVNDateInputs() {

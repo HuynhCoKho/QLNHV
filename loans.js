@@ -123,22 +123,9 @@ let loanHistoryLoadPromise = null;
 // dòng, trừ khi sheet Hồ sơ đầy đủ đã được tải sẵn từ nơi khác (vd trang Hồ
 // sơ TTHC) — khi đó dùng luôn, không tải lại.
 async function ensureLoanHistoryData() {
-  const missingLookup = ['TTHC','NhomNghiepVu'].filter(s => !LOADED_SHEETS.has(s));
-  if (!missingLookup.length && (LOADED_SHEETS.has('HoSo') || hoSoSpecialLoaded)) return;
   if (loanHistoryLoadPromise) return loanHistoryLoadPromise;
   loanHistoryLoadPromise = (async () => {
-    const tasks = [];
-    if (missingLookup.length) {
-      tasks.push(apiGet('batchList', { sheets: missingLookup.join(',') }).then(bundle => {
-        missingLookup.forEach(sheet => {
-          DB[sheet] = Array.isArray(bundle[sheet]) ? bundle[sheet] : [];
-          LOADED_SHEETS.add(sheet);
-        });
-      }));
-    }
-    if (!LOADED_SHEETS.has('HoSo') && !hoSoSpecialLoaded) tasks.push(ensureHoSoSpecial());
-    await Promise.all(tasks);
-    normalizeIds();
+    await Promise.all([ensureSheets(['TTHC', 'NhomNghiepVu']), ensureHoSoSpecial()]);
   })().finally(() => { loanHistoryLoadPromise = null; });
   return loanHistoryLoadPromise;
 }
@@ -425,7 +412,7 @@ function renderKhoanVay() {
   document.getElementById('loanGuarantee').onchange=draw;
   draw();
   // Không chặn bảng chính trong lúc tải hồ sơ lịch sử liên quan.
-  if (!LOADED_SHEETS.has('HoSo') && !hoSoSpecialLoaded) {
+  if (!fullHoSoLoaded && !hoSoSpecialLoaded) {
     ensureLoanHistoryData().then(() => {
       if (search.isConnected) {
         document.getElementById('loanRelatedCount').textContent = DB.HoSo.filter(h => h.MaKhoanVay && isLoanProcedure(h.MaTTHC)).length;
@@ -448,7 +435,7 @@ async function showLoanHistory(maKV) {
   if (master) maKV = String(master['MÃ SỐ KV']).trim();
 
   // Hồ sơ có thể đã lưu dù bảng tổng hợp khoản vay chưa có mã tương ứng.
-  if (!master || !LOADED_SHEETS.has('HoSo')) {
+  if (!master || !fullHoSoLoaded) {
     openModal('Đang tải lịch sử khoản vay', '<div class="empty-state"><h3>Đang tải dữ liệu lịch sử…</h3><p>Danh sách khoản vay vẫn sử dụng được trong lúc chờ.</p></div>');
     const loadingToken = modalToken;
     try {
@@ -474,7 +461,7 @@ async function showLoanHistory(maKV) {
         const bundle = await apiGet('batchList', { sheets: missingLookup.join(',') });
         missingLookup.forEach(sheet => { DB[sheet] = Array.isArray(bundle[sheet]) ? bundle[sheet] : []; LOADED_SHEETS.add(sheet); });
       }
-      if (!master || !LOADED_SHEETS.has('HoSo')) await fetchHoSoLinked('MaKhoanVay', maKV);
+      if (!master || !fullHoSoLoaded) await fetchHoSoLinked('MaKhoanVay', maKV);
       if (masterError && !loanHistory(maKV).length) throw masterError;
     } catch (err) {
       if (loadingToken === modalToken) { toast('Không tra cứu được lịch sử: ' + err.message, true); closeModal(); }

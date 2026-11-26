@@ -23,7 +23,14 @@ function isLendingProcedure(maTTHC) {
 async function syncLendingFromCase(h) {
   const maKV = String(h && h.MaKhoanChoVay || '').trim();
   if (!maKV) return;
-  const existing = DB.ChoVay.find(r => String(r['MÃ SỐ KHOẢN CHO VAY'] || '').trim() === maKV);
+  let existing = DB.ChoVay.find(r => String(r['MÃ SỐ KHOẢN CHO VAY'] || '').trim() === maKV);
+  if (!existing) {
+    try {
+      existing = await apiGet('get', { sheet: 'ChoVay', id: maKV });
+    } catch (error) {
+      if (!/Khong tim thay ban ghi/i.test(error.message)) throw error;
+    }
+  }
   const amount = parseNum(h.SoTienChoVayNguyenTe);
   const data = existing ? { ...existing } : {
     'MÃ SỐ KHOẢN CHO VAY': maKV, 'MÃ KH': '', 'SỐ VBXN': '', 'NGÀY VBXN': '',
@@ -40,7 +47,8 @@ async function syncLendingFromCase(h) {
   if (h.NguyenTeChoVay) data['NGUYÊN TỆ'] = h.NguyenTeChoVay;
   if (h.FileVanBan) data.FILE = h.FileVanBan;
   await apiPost(existing ? 'update' : 'create', 'ChoVay', data, existing ? maKV : undefined);
-  if (existing) Object.assign(existing, data); else DB.ChoVay.push(data);
+  const cached = DB.ChoVay.find(row => String(row['MÃ SỐ KHOẢN CHO VAY']).trim() === maKV);
+  if (cached) Object.assign(cached, data); else DB.ChoVay.push(data);
 }
 
 // Dữ liệu lịch sử cũ có thể chưa điền MÃ KH trong ChoVay. Khi đó lấy
@@ -141,7 +149,7 @@ function renderChoVay() {
   document.getElementById('lendingGuarantee').onchange=draw;
   draw();
   // Không chặn bảng chính trong lúc tải hồ sơ liên quan phía sau.
-  if (!LOADED_SHEETS.has('HoSo') && !hoSoSpecialLoaded) {
+  if (!fullHoSoLoaded && !hoSoSpecialLoaded) {
     ensureHoSoSpecial().then(() => {
       if ((location.hash || '#hoso') === '#chovay') renderChoVay();
     }).catch(err => toast('Chưa tải được hồ sơ liên quan: ' + err.message, true));

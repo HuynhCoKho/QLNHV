@@ -42,16 +42,8 @@ function hsrUSDCell(row){const amount=hsrUSDAmount(row);return `<td class="num h
 function hsrStatusCells(row){const status=String(row.TrangThai||'').trim();return TRANGTHAI_HOSO.map(s=>{if(status!==s)return '<td class="hsr-check"></td>';if(s==='Đã xử lý'&&row.LoaiVanBanXuLy)return `<td class="hsr-check hsr-vbxl-cell">${esc(row.LoaiVanBanXuLy)}</td>`;return '<td class="hsr-check">✓</td>'}).join('')}
 function hsrCountCells(rows){const counts=hsrCounts(rows);return TRANGTHAI_HOSO.map(s=>`<td class="num"><b>${counts[s]}</b></td>`).join('')}
 function hsrRoman(index){const values=['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV','XV','XVI','XVII','XVIII','XIX','XX'];return values[index]||String(index+1)}
-const HSR_AMOUNT_FIELDS=['SoTienVayNguyenTe','NguyenTeVay','SoTienChoVayNguyenTe','NguyenTeChoVay','SoTienDangKyNguyenTe'];
-let hsrFullHoSoLoaded=false;
-function hsrHasAmountColumns(){return DB.HoSo.some(row=>HSR_AMOUNT_FIELDS.some(field=>Object.prototype.hasOwnProperty.call(row,field)))}
 async function hsrEnsureFullHoSo(){
-  if(hsrFullHoSoLoaded||hsrHasAmountColumns())return;
-  const rows=await apiGet('list',{sheet:'HoSo'});
-  if(!Array.isArray(rows))throw Error('Không tải được dữ liệu số tiền của hồ sơ.');
-  DB.HoSo=rows;
-  normalizeIds();
-  hsrFullHoSoLoaded=true;
+  if (!fullHoSoLoaded) await reloadSheet('HoSo');
 }
 function hsrReportRows(data){let html='',number=0;data.provinces.forEach((province,pIndex)=>{html+=`<tr class="hsr-province"><td colspan="${TRANGTHAI_HOSO.length+3}">${hsrRoman(pIndex)}. ${esc(String(province.name).toUpperCase())} — ${province.rows.length} hồ sơ</td></tr>`;province.procedures.forEach((procedure,tIndex)=>{html+=`<tr class="hsr-procedure"><td colspan="${TRANGTHAI_HOSO.length+3}">${tIndex+1}. ${esc(procedure.code)} — ${esc(procedure.name)}</td></tr>`;procedure.rows.forEach(row=>{number++;html+=`<tr><td class="mono">${esc(row.MaHoSo)}</td><td><b>${esc(khName(row.MaKH)||'Chưa xác định')}</b><br><span class="muted mono">${esc(row.MaKH||'')}</span></td>${hsrUSDCell(row)}${hsrStatusCells(row)}</tr>`});html+=`<tr class="hsr-subtotal"><td colspan="2">Tổng thủ tục: ${procedure.rows.length} hồ sơ</td><td class="num">${esc(fmtNum(hsrUSDSum(procedure.rows)))}</td>${hsrCountCells(procedure.rows)}</tr>`});html+=`<tr class="hsr-province-total"><td colspan="2">TỔNG ${esc(String(province.name).toUpperCase())}: ${province.rows.length} hồ sơ</td><td class="num">${esc(fmtNum(hsrUSDSum(province.rows)))}</td>${hsrCountCells(province.rows)}</tr>`});return html}
 function hsrTable(data){return `<table class="hsr-table"><thead><tr><th>MÃ HỒ SƠ</th><th>TÊN DOANH NGHIỆP</th><th>SỐ TIỀN QUY USD</th>${TRANGTHAI_HOSO.map(s=>`<th>${esc(String(s).toUpperCase())}</th>`).join('')}</tr></thead><tbody>${hsrReportRows(data)}<tr class="hsr-grand"><td colspan="2">TỔNG CỘNG: ${data.rows.length} HỒ SƠ</td><td class="num">${esc(fmtNum(hsrUSDSum(data.rows)))}</td>${hsrCountCells(data.rows)}</tr></tbody></table>`}
